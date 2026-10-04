@@ -266,7 +266,7 @@ input.calc { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 
 /* Toast */
 .toast {
-  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + 26px + env(safe-area-inset-bottom)); z-index: 60;
+  position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top) + 14px); z-index: 60;
   background: var(--text); color: var(--bg); padding: 11px 18px; border-radius: 14px; font-weight: 600; font-size: 14px;
   box-shadow: 0 8px 24px rgba(0,0,0,.2); animation: fade .2s ease; max-width: calc(100% - 32px);
 }
@@ -316,3 +316,10 @@ input.calc { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .ctip .tot { border-top: 1px solid color-mix(in srgb, var(--bg) 30%, transparent); margin-top: 3px; padding-top: 3px; }
 .chart-box svg { touch-action: pan-y; }
 .kv div:last-child:nth-child(odd) { grid-column: span 2; }
+
+.icon-btn.sync-ok { color: var(--good); }
+.icon-btn.sync-errore { color: var(--bad); }
+.icon-btn.sync-offline { color: var(--warn); }
+.icon-btn.sync-sync svg { animation: spin 1s linear infinite; color: var(--accent); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn:disabled { opacity: .6; }

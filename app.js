@@ -3,7 +3,7 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '2.0.0';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -26,6 +26,9 @@ const ICON = {
   trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>',
+  cloud: '<svg viewBox="0 0 24 24"><path d="M7 18a5 5 0 0 1-.6-9.96A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/></svg>',
+  cloudOff: '<svg viewBox="0 0 24 24"><path d="M7 18a5 5 0 0 1-.6-9.96M10 4.3A6 6 0 0 1 18 9a4.5 4.5 0 0 1 2.4 8.3M3 3l18 18"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5L20 16M20 20v-4h-4"/></svg>',
   chevron: '<svg viewBox="0 0 24 24" style="width:18px;height:18px;opacity:.5"><path d="M9 6l6 6-6 6"/></svg>'
 };
 
@@ -53,7 +56,9 @@ const UI = {
     $('#sheetBackdrop').onclick = () => this.closeSheet();
     document.addEventListener('keydown', e => { if (e.key === 'Escape') this.closeSheet(); });
     this.updateThemeIcon();
+    $('#btnSync').onclick = () => Sync.run(true);
     this.render();
+    Sync.init();
 
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -128,7 +133,9 @@ const UI = {
       case 'import': this.importBackup(); break;
       case 'theme': this.setTheme(el.dataset.theme); break;
       case 'periodo': this.state.statPeriodo = el.dataset.p; this.saveUi(); this.render(); break;
-      case 'soon': this.toast('Arriva nella Versione 2 🚀'); break;
+      case 'soon': this.toast('In arrivo nel prossimo aggiornamento 🚀'); break;
+      case 'sheets': this.openSyncSheet(); break;
+      case 'sync-now': Sync.run(true).then(() => this.openSyncSheet()); break;
     }
   },
 
@@ -636,8 +643,8 @@ const UI = {
     $('#view').innerHTML = `
       <div class="list">
         <div class="item" data-go="#scadenze"><div class="ic doc">${ICON.bell}</div><div class="main"><div class="t">Scadenze e promemoria</div><div class="s">${nScad ? nScad + ' da controllare' : 'Tutto in regola'}</div></div>${ICON.chevron}</div>
-        <div class="item" data-act="soon"><div class="ic exp">${ICON.sheet}</div><div class="main"><div class="t">Google Sheets</div><div class="s">Sincronizzazione · in arrivo nella V2</div></div>${ICON.chevron}</div>
-        <div class="item" data-act="soon"><div class="ic fuel">${ICON.doc}</div><div class="main"><div class="t">Report PDF / Excel</div><div class="s">In arrivo nella V2</div></div>${ICON.chevron}</div>
+        <div class="item" data-act="sheets"><div class="ic exp">${ICON.sheet}</div><div class="main"><div class="t">Google Sheets</div><div class="s">${Sync.attivo() ? (Sync.stato === 'errore' ? 'Errore di sincronizzazione' : 'Collegato · sincronizzazione automatica') : 'Non collegato · tocca per collegare'}</div></div>${ICON.chevron}</div>
+        <div class="item" data-act="soon"><div class="ic fuel">${ICON.doc}</div><div class="main"><div class="t">Report PDF / Excel</div><div class="s">In arrivo nel prossimo aggiornamento</div></div>${ICON.chevron}</div>
       </div>
 
       <div class="section-title"><h3>Aspetto</h3></div>
@@ -647,7 +654,7 @@ const UI = {
 
       <div class="section-title"><h3>Backup dei dati</h3></div>
       <div class="card">
-        <div class="note-box">I dati sono salvati <b>solo su questo dispositivo</b>. Finché non attiviamo Google Sheets, fai ogni tanto un backup: scarica il file e conservalo (es. su Google Drive).</div>
+        <div class="note-box">${Sync.attivo() ? 'I dati sono salvati sul dispositivo <b>e</b> nel tuo foglio Google. Il backup su file è una sicurezza in più.' : 'I dati sono salvati <b>solo su questo dispositivo</b>. Collega Google Sheets oppure fai ogni tanto un backup su file.'}</div>
         <div class="btn-row">
           <button class="btn" data-act="export">${ICON.download} Scarica backup</button>
           <button class="btn secondary" data-act="import">${ICON.upload} Ripristina</button>
@@ -710,8 +717,82 @@ const UI = {
     document.body.style.overflow = 'hidden';
   },
   closeSheet() {
+    const eraAperto = !$('#sheet').hidden;
     $('#sheet').hidden = true; $('#sheetBackdrop').hidden = true;
     document.body.style.overflow = '';
+    if (eraAperto && this._needRender) { this._needRender = false; this.render(); }
+  },
+
+  /** Ridisegna la schermata senza disturbare un modulo aperto */
+  refresh() {
+    if ($('#sheet').hidden) this.render(); else this._needRender = true;
+  },
+
+  updateSyncIcon() {
+    const b = $('#btnSync');
+    if (!b) return;
+    b.hidden = Sync.stato === 'off';
+    b.className = 'icon-btn sync-' + Sync.stato;
+    b.innerHTML = Sync.stato === 'offline' || Sync.stato === 'errore' ? ICON.cloudOff : (Sync.stato === 'sync' ? ICON.refresh : ICON.cloud);
+    b.title = { ok: 'Sincronizzato con Google Sheets', sync: 'Sincronizzazione…', errore: 'Errore: ' + Sync.errore, offline: 'Offline: sincronizzerò appena torna la rete' }[Sync.stato] || '';
+    const st = document.getElementById('syncStatus');
+    if (st) st.innerHTML = this.syncStatusHTML();
+  },
+
+  syncStatusHTML() {
+    const c = Sync.cfg();
+    const quando = c.lastSync ? new Date(c.lastSync).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'mai';
+    const map = {
+      ok: ['good', '● Collegato'], sync: ['warn', '↻ Sincronizzazione…'], errore: ['bad', '● Errore'], offline: ['warn', '● Offline'], off: ['', '○ Non collegato']
+    };
+    const [cls, txt] = map[Sync.stato] || map.off;
+    return `<span class="chip ${cls}">${txt}</span> <span class="muted">Ultima sincronizzazione: ${quando}</span>${Sync.stato === 'errore' ? `<div class="muted" style="color:var(--bad);margin-top:6px">${esc(Sync.errore)}</div>` : ''}`;
+  },
+
+  openSyncSheet() {
+    const c = Sync.cfg();
+    const on = Sync.attivo();
+    this.openSheet('Google Sheets', `
+      <div id="syncStatus" style="margin-bottom:14px">${this.syncStatusHTML()}</div>
+      ${on ? `
+        <div class="note-box">L'app invia ogni modifica al foglio in automatico e riceve quelle fatte nel foglio quando la apri (o quando tocchi la nuvola in alto).</div>
+        <div class="btn-row">
+          <button class="btn" data-act="sync-now">${ICON.refresh} Sincronizza ora</button>
+          <button class="btn secondary" id="btnScollega">Scollega</button>
+        </div>
+        <p class="muted" style="margin-top:14px;word-break:break-all">Collegato a: ${esc(c.url)}</p>` : `
+        <form class="form" id="frmSync">
+          <div class="field"><label for="sUrl">Indirizzo dell'app web (Apps Script)</label>
+            <input id="sUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" required>
+            <div class="hint">Lo trovi in Apps Script → Distribuisci → Gestisci deployment</div></div>
+          <div class="field"><label for="sTok">Codice segreto</label>
+            <input id="sTok" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+            <div class="hint">Lo stesso che hai scritto in CODICE_SEGRETO nello script</div></div>
+          <div class="note-box">Alla prima sincronizzazione i dati già presenti nell'app vengono copiati nel foglio, e quelli del foglio nell'app.</div>
+          <button type="submit" class="btn block" id="btnCollega">${ICON.cloud} Collega e sincronizza</button>
+        </form>`}
+    `);
+    if (on) {
+      $('#btnScollega').onclick = () => {
+        if (!confirm('Scollegare il foglio Google? I dati restano sia nell\'app sia nel foglio.')) return;
+        Sync.scollega(); this.openSyncSheet(); this.toast('Foglio scollegato');
+      };
+    } else {
+      $('#frmSync').onsubmit = async e => {
+        e.preventDefault();
+        const btn = $('#btnCollega');
+        btn.disabled = true; btn.textContent = 'Collegamento in corso…';
+        try {
+          await Sync.collega($('#sUrl').value, $('#sTok').value);
+          this.toast('Collegato a Google Sheets ✓');
+          this.openSyncSheet();
+          this._needRender = true;
+        } catch (err) {
+          btn.disabled = false; btn.innerHTML = ICON.cloud + ' Collega e sincronizza';
+          alert('Collegamento non riuscito:\n' + err.message);
+        }
+      };
+    }
   },
 
   quickAdd() {
