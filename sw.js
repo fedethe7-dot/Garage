@@ -1,9 +1,10 @@
 /* GARAGE — sw.js : fa funzionare l'app anche senza internet */
-const CACHE = 'garage-v2.1.2';
+const CACHE = 'garage-v2.1.3';
 const FILES = ['./', 'index.html', 'style.css', 'db.js', 'calc.js', 'charts.js', 'sync.js', 'app.js', 'manifest.json', 'icona-garage.svg', 'icona-garage-192.png', 'icona-garage-512.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // salva i file uno per uno: se ne manca uno l'app si installa lo stesso
+  e.waitUntil(caches.open(CACHE).then(c => Promise.all(FILES.map(f => c.add(f).catch(() => null)))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {

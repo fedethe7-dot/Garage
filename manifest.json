@@ -1,4 +1,5 @@
 {
+  "id": "./",
   "name": "Garage",
   "short_name": "Garage",
   "description": "Gestione personale dei veicoli: rifornimenti, consumi, manutenzione, spese e statistiche.",
