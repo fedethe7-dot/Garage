@@ -14,6 +14,11 @@ const CONFIG = {
     'Distribuzione', 'Revisione', 'Catena moto', 'Liquidi', 'Manutenzione GPL', 'Altro'],
   categorieSpesa: ['Assicurazione', 'Bollo', 'Revisione', 'Pneumatici', 'Ricambi', 'Lavaggio', 'Parcheggi',
     'Pedaggi', 'Accessori', 'Multe', 'Altro'],
+  emojiCarburante: { Benzina: '⛽', Diesel: '🛢️', GPL: '🔥', Metano: '💨', Elettrico: '⚡', Altro: '⛽' },
+  emojiManutenzione: { 'Tagliando': '🧰', 'Cambio olio': '🛢️', 'Filtri': '🌀', 'Gomme': '🛞', 'Freni': '🛑', 'Pastiglie freno': '🛑',
+    'Batteria': '🔋', 'Distribuzione': '⛓️', 'Revisione': '✅', 'Catena moto': '⛓️', 'Liquidi': '💧', 'Manutenzione GPL': '🔥', 'Altro': '🔧' },
+  emojiSpesa: { 'Carburante': '⛽', 'Manutenzione': '🔧', 'Assicurazione': '🛡️', 'Bollo': '📄', 'Revisione': '✅', 'Pneumatici': '🛞',
+    'Ricambi': '⚙️', 'Lavaggio': '🧽', 'Parcheggi': '🅿️', 'Pedaggi': '🛣️', 'Accessori': '🎒', 'Multe': '🚨', 'Altro': '📦' },
   iconaTipo: { 'Auto': '🚗', 'Moto': '🏍️', 'Scooter': '🛵', 'Ciclomotore': '🛵', 'Trattorino / attrezzo': '🚜', 'Altro': '🚙' },
   periodi: [
     ['oggi', 'Oggi'], ['settimana', 'Settimana'], ['mese', 'Mese'], ['trimestre', 'Trimestre'],

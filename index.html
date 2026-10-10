@@ -11,11 +11,16 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script>
-    // applica subito il tema salvato (evita il lampo bianco)
-    try { const t = localStorage.getItem('garage-tema'); if (t && t !== 'auto') document.documentElement.dataset.theme = t; } catch (e) {}
+    // applica subito tema e colore salvati (evita il lampo)
+    try {
+      const t = localStorage.getItem('garage-tema') || 'dark';
+      if (t !== 'auto') document.documentElement.dataset.theme = t;
+      const c = JSON.parse(localStorage.getItem('garage-colore-css') || 'null');
+      if (c) for (const k in c) document.documentElement.style.setProperty(k, c[k]);
+    } catch (e) {}
   </script>
 </head>
 <body>
@@ -25,8 +30,8 @@
     </button>
     <h1 id="pageTitle">Garage</h1>
     <button class="icon-btn" id="btnSync" aria-label="Sincronizza" hidden></button>
-    <button class="icon-btn" id="btnTheme" aria-label="Cambia tema">
-      <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    <button class="icon-btn" id="btnTheme" aria-label="Temi e colori">
+      <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/></svg>
     </button>
   </header>
 
