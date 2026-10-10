@@ -1,9 +1,9 @@
 {
-  "id": "./",
+  "id": "/Garage/?app=garage-2",
   "name": "Garage",
   "short_name": "Garage",
   "description": "Gestione personale dei veicoli: rifornimenti, consumi, manutenzione, spese e statistiche.",
-  "start_url": "./",
+  "start_url": "./?app=garage-2",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
