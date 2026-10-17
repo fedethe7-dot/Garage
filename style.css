@@ -456,3 +456,19 @@ details.more input, details.more select, details.more textarea { background: var
 .att-add { width: 100%; justify-content: center; }
 .att-add svg { width: 18px; height: 18px; }
 .item.doc .t { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
+
+/* ---------- Viaggi e giri ---------- */
+.map-card { background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow); overflow: hidden; }
+.map { height: 300px; width: 100%; background: var(--surface-2); z-index: 0; }
+.map.tall { height: 340px; }
+.map-empty { height: 100%; display: grid; place-items: center; color: var(--text-2); font-weight: 700; padding: 20px; text-align: center; }
+.map-dark .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9) saturate(.7); }
+.map .leaflet-popup-content-wrapper, .map .leaflet-popup-tip { background: var(--surface); color: var(--text); }
+.map .leaflet-popup-content a { color: var(--accent-ink, var(--accent)); font-weight: 800; }
+.map .leaflet-control-attribution { font-size: 10px; }
+ol.tappe { list-style: none; margin: 0; padding: 0; counter-reset: t; }
+ol.tappe li { position: relative; padding: 8px 0 8px 34px; font-weight: 800; counter-increment: t; }
+ol.tappe li::before { content: counter(t); position: absolute; left: 0; top: 7px; width: 24px; height: 24px; border-radius: 50%; background: var(--surface-2); color: var(--text-2); font-size: 12px; display: grid; place-items: center; z-index: 1; }
+ol.tappe li:not(:last-child)::after { content: ''; position: absolute; left: 11px; top: 30px; bottom: -8px; width: 2px; background: var(--border); }
+ol.tappe li.start::before { background: #22c55e; color: #fff; }
+ol.tappe li.end::before { background: #ef4444; color: #fff; }
