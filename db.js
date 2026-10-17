@@ -6,8 +6,8 @@
    ========================================================= */
 
 const DB_NAME = 'garage-db';
-const DB_VERSION = 2;
-const TABLES = ['veicoli', 'rifornimenti', 'manutenzioni', 'spese', 'bolli', 'assicurazioni', 'documenti'];
+const DB_VERSION = 3;
+const TABLES = ['veicoli', 'rifornimenti', 'manutenzioni', 'spese', 'bolli', 'assicurazioni', 'documenti', 'viaggi'];
 
 const DB = {
   _db: null,
@@ -125,7 +125,9 @@ const DB = {
   async mergeFromServer(server, sent) {
     let cambiati = 0;
     for (const t of TABLES) {
-      const srv = server[t] || [];
+      // se lo script del foglio non conosce ancora questa tabella (es. viaggi), i dati restano sul dispositivo
+      if (!Array.isArray(server[t])) continue;
+      const srv = server[t];
       const sMap = {};
       srv.forEach(r => sMap[r.id] = r);
       const keep = [];
@@ -155,10 +157,11 @@ const DB = {
   },
 
   /** Record da inviare al foglio */
-  pending(all) {
+  pending(all, escludi = []) {
     const out = {}, sent = {};
     let n = 0;
     for (const t of TABLES) {
+      if (escludi.includes(t)) continue;
       out[t] = []; sent[t] = {};
       for (const r of this.data[t]) {
         if (!(all || r._dirty)) continue;

@@ -19,9 +19,9 @@ const CONFIG = {
     'Batteria': '🔋', 'Distribuzione': '⛓️', 'Revisione': '✅', 'Catena moto': '⛓️', 'Liquidi': '💧', 'Manutenzione GPL': '🔥', 'Altro': '🔧' },
   emojiSpesa: { 'Carburante': '⛽', 'Manutenzione': '🔧', 'Assicurazione': '🛡️', 'Bollo': '📄', 'Revisione': '✅', 'Pneumatici': '🛞',
     'Ricambi': '⚙️', 'Lavaggio': '🧽', 'Parcheggi': '🅿️', 'Pedaggi': '🛣️', 'Accessori': '🎒', 'Multe': '🚨', 'Altro': '📦' },
-  categorieDocumento: ['Manutenzione', 'Assicurazione', 'Bollo', 'Revisione', 'Carta di circolazione', 'Certificato di proprietà', 'Spese', 'Altro'],
+  categorieDocumento: ['Manutenzione', 'Assicurazione', 'Bollo', 'Revisione', 'Carta di circolazione', 'Certificato di proprietà', 'Spese', 'Viaggi', 'Altro'],
   emojiDocumento: { 'Manutenzione': '🔧', 'Assicurazione': '🛡️', 'Bollo': '📄', 'Revisione': '✅', 'Carta di circolazione': '🪪',
-    'Certificato di proprietà': '📜', 'Spese': '🧾', 'Altro': '📁' },
+    'Certificato di proprietà': '📜', 'Spese': '🧾', 'Viaggi': '🗺️', 'Altro': '📁' },
   iconaTipo: { 'Auto': '🚗', 'Moto': '🏍️', 'Scooter': '🛵', 'Ciclomotore': '🛵', 'Trattorino / attrezzo': '🚜', 'Altro': '🚙' },
   periodi: [
     ['oggi', 'Oggi'], ['settimana', 'Settimana'], ['mese', 'Mese'], ['trimestre', 'Trimestre'],

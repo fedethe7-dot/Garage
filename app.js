@@ -3,7 +3,7 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.3.0';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -70,7 +70,7 @@ const Docs = {
       const y2 = this.anno(scadenza);
       return y + '-' + (y2 && y2 > y ? y2 : +y + 1);
     }
-    if (['Manutenzione', 'Revisione', 'Bollo', 'Spese'].includes(categoria)) return y;
+    if (['Manutenzione', 'Revisione', 'Bollo', 'Spese', 'Viaggi'].includes(categoria)) return y;
     return '';
   },
   cartellaEvento(table, r, cat) {
@@ -147,7 +147,7 @@ const UI = {
   state: {
     statPeriodo: 'mese', statVeicolo: 'tutti', statCustom: {}, statTab: 'riepilogo',
     vehTab: 'panoramica', ultimoVeicolo: null, movTipo: 'tutti', movVeicolo: 'tutti',
-    nome: '', colore: 'oceano', docVeicolo: 'tutti'
+    nome: '', colore: 'oceano', docVeicolo: 'tutti', viaVeicolo: 'tutti', viaAnno: 'tutti'
   },
 
   /* ---------- Avvio ---------- */
@@ -225,9 +225,10 @@ const UI = {
     const hash = location.hash.replace('#', '') || 'home';
     const [route, param] = hash.split('/');
     Charts.clear();
-    const parent = { veicolo: 'mezzi', scadenze: 'altro', movimenti: 'home', documenti: 'altro' }[route] || route;
+    if (typeof Viaggi !== 'undefined') Viaggi.pulisci();
+    const parent = { veicolo: 'mezzi', scadenze: 'altro', movimenti: 'home', documenti: 'altro', viaggi: 'altro', viaggio: 'altro' }[route] || route;
     document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === parent));
-    $('#btnBack').hidden = !['veicolo', 'scadenze', 'movimenti', 'documenti'].includes(route);
+    $('#btnBack').hidden = !['veicolo', 'scadenze', 'movimenti', 'documenti', 'viaggi', 'viaggio'].includes(route);
     const view = $('#view');
     const nuovaPagina = this._lastHash !== hash;
     if (nuovaPagina) { view.style.animation = 'none'; void view.offsetWidth; view.style.animation = ''; }
@@ -240,7 +241,9 @@ const UI = {
       altro: () => this.vAltro(),
       scadenze: () => this.vScadenze(),
       movimenti: () => this.vMovimenti(),
-      documenti: () => this.vDocumenti()
+      documenti: () => this.vDocumenti(),
+      viaggi: () => this.vViaggi(),
+      viaggio: () => this.vViaggio(param)
     };
     (views[route] || views.home)();
     if (nuovaPagina) window.scrollTo(0, 0);
@@ -279,6 +282,10 @@ const UI = {
       case 'soon': this.toast('In arrivo nel prossimo aggiornamento 🚀'); break;
       case 'doc-open': Docs.apri(DB.get('documenti', d.id)); break;
       case 'dveicolo': set('docVeicolo', d.v); break;
+      case 'vveicolo': set('viaVeicolo', d.v); break;
+      case 'vanno': set('viaAnno', d.v); break;
+      case 'via-mappa': this.state.viaVeicolo = d.v; this.state.viaAnno = 'tutti'; this.saveUi(); location.hash = '#viaggi'; break;
+      case 'via-gpx': { const v = DB.get('viaggi', d.id); if (v) Viaggi.scaricaGpx(v); break; }
     }
   },
 
@@ -412,6 +419,10 @@ const UI = {
 
       <div class="section-title"><h3>Ultimi movimenti</h3><a href="#movimenti">Vedi tutti</a></div>
       ${this.listaMovimenti(null, 5)}
+
+      <div class="section-title"><h3>🗺️ Viaggi e giri</h3><a href="#viaggi">${DB.list('viaggi').length ? 'Vedi tutti' : 'Apri'}</a></div>
+      ${DB.list('viaggi').length ? `<div class="list">${Viaggi.lista().slice(0, 3).map(x => this.itemViaggio(x, true)).join('')}</div>`
+        : `<div class="list"><div class="item" data-act="new" data-table="viaggi"><div class="ic t-exp">🗺️</div><div class="main"><div class="t">Registra il primo giro</div><div class="s">Tappe, km e tracciato GPX</div></div>${ICON.chevron}</div></div>`}
     `;
   },
 
@@ -576,7 +587,7 @@ const UI = {
     if (mostraVeicolo) sub.push(esc(this.nomeVeicolo(v)));
     if (d.data) sub.push(D.fmt(d.data));
     if (d.scadenza) sub.push('scade ' + D.fmt(d.scadenza));
-    if (d.rifId) sub.push(DB.get(d.rifTabella, d.rifId) ? '🔗 ' + ({ manutenzioni: 'manutenzione', spese: 'spesa', bolli: 'bollo', assicurazioni: 'assicurazione' }[d.rifTabella] || 'evento') : '🔗 evento eliminato');
+    if (d.rifId) sub.push(DB.get(d.rifTabella === 'viaggi-gpx' ? 'viaggi' : d.rifTabella, d.rifId) ? '🔗 ' + ({ manutenzioni: 'manutenzione', spese: 'spesa', bolli: 'bollo', assicurazioni: 'assicurazione', 'viaggi-gpx': 'viaggio' }[d.rifTabella] || 'evento') : '🔗 evento eliminato');
     return `
       <div class="item doc" data-act="doc-open" data-id="${d.id}">
         <div class="ic t-doc">${Docs.emojiFile(d)}</div>
@@ -648,9 +659,14 @@ const UI = {
     this.state.ultimoVeicolo = id; this.saveUi();
     this.setTitle(this.nomeVeicolo(v));
     const tab = this.state.vehTab || 'panoramica';
-    const tabs = [['panoramica', '📊 Panoramica'], ['rifornimenti', '⛽ Rifornimenti'], ['manutenzioni', '🔧 Manutenzioni'], ['spese', '🧾 Spese'], ['documenti', '📄 Bollo e assicurazione'], ['archivio', '📁 Documenti']];
+    const tabs = [['panoramica', '📊 Panoramica'], ['rifornimenti', '⛽ Rifornimenti'], ['manutenzioni', '🔧 Manutenzioni'], ['spese', '🧾 Spese'], ['documenti', '📄 Bollo e assicurazione'], ['viaggi', '🗺️ Viaggi'], ['archivio', '📁 Documenti']];
     let body = '';
     if (tab === 'panoramica') body = this.vVeicoloPanoramica(v);
+    else if (tab === 'viaggi') {
+      const lista = Viaggi.lista(v.id), t = Viaggi.totali(lista);
+      body = `<div class="btn-row" style="margin:0 0 12px"><button class="btn secondary" data-act="new" data-table="viaggi" data-vid="${v.id}">${ICON.plus} Nuovo viaggio</button>${lista.length ? `<button class="btn secondary" data-act="via-mappa" data-v="${v.id}">🗺️ Mappa dei giri</button>` : ''}</div>` +
+        (lista.length ? `<div class="grid grid-2" style="margin-bottom:12px">${this.stat('🗺️ Viaggi', F.num(t.n))}${this.stat('🛣️ Km in viaggio', F.num(t.km))}</div>` + this.listaViaggi(lista, false) : this.vuotoViaggi());
+    }
     else if (tab === 'archivio') body = `<div class="btn-row" style="margin:0 0 4px"><button class="btn secondary" data-act="new" data-table="documenti" data-vid="${v.id}">${ICON.plus} Aggiungi documento</button></div>` + this.listaDocumenti(v.id);
     else {
       const map = { rifornimenti: ['rifornimenti'], manutenzioni: ['manutenzioni'], spese: ['spese'], documenti: ['bolli', 'assicurazioni'] };
@@ -968,6 +984,119 @@ const UI = {
     }
   },
 
+
+  /* =========================================================
+     VIAGGI E GIRI
+     ========================================================= */
+  itemViaggio(x, mostraVeicolo) {
+    const v = DB.get('veicoli', x.veicoloId);
+    const tappe = Viaggi.tappe(x);
+    const sub = [];
+    if (mostraVeicolo) sub.push(esc(this.nomeVeicolo(v)));
+    sub.push(D.fmt(x.data));
+    if (tappe.length >= 2) sub.push(esc(tappe[0]) + ' → ' + esc(tappe[tappe.length - 1]));
+    else if (tappe.length) sub.push(esc(tappe[0]));
+    return `
+      <div class="item" data-go="#viaggio/${x.id}">
+        <div class="ic t-exp">${x.tracciato ? '🗺️' : this.emojiVeicolo(v)}</div>
+        <div class="main"><div class="t">${esc(x.titolo || 'Viaggio')}</div><div class="s">${sub.join(' · ')}</div></div>
+        <div class="r"><b>${num(x.km) ? F.num(num(x.km)) + ' km' : '—'}</b>${x.durata ? `<span>${esc(x.durata)}</span>` : ''}</div>
+      </div>`;
+  },
+
+  listaViaggi(lista, mostraVeicolo) {
+    const gruppi = [];
+    for (const x of lista) {
+      const k = (x.data || '').slice(0, 4) || 'Senza data';
+      if (!gruppi.length || gruppi[gruppi.length - 1].k !== k) gruppi.push({ k, items: [] });
+      gruppi[gruppi.length - 1].items.push(x);
+    }
+    return gruppi.map(g => `<div class="day-label" style="display:flex;justify-content:space-between"><span>${g.k}</span><span>${g.items.length} ${g.items.length === 1 ? 'giro' : 'giri'} · ${F.num(Viaggi.totali(g.items).km)} km</span></div>
+      <div class="list">${g.items.map(x => this.itemViaggio(x, mostraVeicolo)).join('')}</div>`).join('');
+  },
+
+  vuotoViaggi() {
+    return `<div class="card empty"><div class="e-ic">🗺️</div><h4>Nessun viaggio ancora</h4>
+      <p>Segna i giri importanti: tappe, km e, se ce l'hai, il file GPX del tracciato.</p>
+      <button class="btn" data-act="new" data-table="viaggi">${ICON.plus} Nuovo viaggio</button></div>`;
+  },
+
+  vViaggi() {
+    this.setTitle('Viaggi e giri');
+    const st = this.state;
+    const veicoli = this.veicoliOrdinati();
+    if (st.viaVeicolo !== 'tutti' && !DB.get('veicoli', st.viaVeicolo)) st.viaVeicolo = 'tutti';
+    const vid = st.viaVeicolo === 'tutti' ? null : st.viaVeicolo;
+    const delMezzo = Viaggi.lista(vid);
+    const anni = [...new Set(delMezzo.map(x => (x.data || '').slice(0, 4)).filter(Boolean))].sort().reverse();
+    if (st.viaAnno !== 'tutti' && !anni.includes(st.viaAnno)) st.viaAnno = 'tutti';
+    const lista = st.viaAnno === 'tutti' ? delMezzo : delMezzo.filter(x => (x.data || '').startsWith(st.viaAnno));
+    const t = Viaggi.totali(lista);
+    const conTraccia = lista.filter(x => x.tracciato).length;
+    $('#view').innerHTML = `
+      ${veicoli.length > 1 ? `<div class="pills">
+        <button class="${!vid ? 'on' : ''}" data-act="vveicolo" data-v="tutti">🚦 Tutti i mezzi</button>
+        ${veicoli.map(v => `<button class="${vid === v.id ? 'on' : ''}" data-act="vveicolo" data-v="${v.id}">${this.avatar(v, 'sm')}${esc(this.nomeVeicolo(v))}</button>`).join('')}
+      </div>` : ''}
+      ${anni.length > 1 ? `<div class="pills" style="margin-top:6px">
+        <button class="${st.viaAnno === 'tutti' ? 'on' : ''}" data-act="vanno" data-v="tutti">📅 Sempre</button>
+        ${anni.map(a => `<button class="${st.viaAnno === a ? 'on' : ''}" data-act="vanno" data-v="${a}">${a}</button>`).join('')}
+      </div>` : ''}
+      ${lista.length ? `
+        <div class="hero" style="margin-top:10px">
+          <div class="label">Km in viaggio ${st.viaAnno === 'tutti' ? '' : 'nel ' + st.viaAnno}</div>
+          <div class="big">${F.num(t.km)} km</div>
+          <div class="mini">
+            <div><span>Giri</span><b>${F.num(t.n)}</b></div>
+            <div><span>Il più lungo</span><b>${t.lungo && num(t.lungo.km) ? F.num(num(t.lungo.km)) + ' km' : '—'}</b></div>
+            <div><span>Dislivello</span><b>${t.disl ? F.num(t.disl) + ' m' : '—'}</b></div>
+          </div>
+        </div>
+        ${conTraccia ? `<div class="section-title"><h3>Mappa dei giri</h3><span class="muted">${conTraccia} ${conTraccia === 1 ? 'tracciato' : 'tracciati'}</span></div>
+          <div class="map-card"><div class="map" id="mappaTutti"></div></div>` : ''}
+        <div class="btn-row" style="margin:14px 0 4px"><button class="btn" data-act="new" data-table="viaggi" data-vid="${vid || ''}">${ICON.plus} Nuovo viaggio</button></div>
+        ${this.listaViaggi(lista, !vid)}` : this.vuotoViaggi()}`;
+    if (conTraccia) Viaggi.mappa($('#mappaTutti'), lista, false);
+  },
+
+  vViaggio(id) {
+    const x = DB.get('viaggi', id);
+    if (!x) { location.hash = '#viaggi'; return; }
+    const v = DB.get('veicoli', x.veicoloId);
+    this.setTitle(x.titolo || 'Viaggio');
+    const tappe = Viaggi.tappe(x);
+    const media = Viaggi.media(x);
+    const gpx = Viaggi.gpxDoc(x.id);
+    const maps = Viaggi.linkMaps(x);
+    $('#view').innerHTML = `
+      <div class="card">
+        <div class="vhead">
+          ${v ? this.avatar(v) : ''}
+          <div style="flex:1;min-width:0">
+            <div class="vname" style="font-size:21px">${esc(x.titolo || 'Viaggio')}</div>
+            <div class="vsub">${D.fmt(x.data)}${x.dataFine && x.dataFine !== x.data ? ' → ' + D.fmt(x.dataFine) : ''} · ${esc(this.nomeVeicolo(v))}</div>
+          </div>
+          <button class="icon-btn" data-edit="viaggi:${x.id}" aria-label="Modifica viaggio">${ICON.edit}</button>
+        </div>
+      </div>
+      <div class="grid grid-2 grid-4-lg" style="margin-top:12px">
+        ${this.stat('🛣️ Km', num(x.km) ? F.num(num(x.km), num(x.km) % 1 ? 1 : 0) : '—')}
+        ${this.stat('⏱️ Durata', x.durata ? esc(x.durata) : '—')}
+        ${this.stat('⛰️ Dislivello', num(x.dislivello) ? F.num(num(x.dislivello)) + ' m' : '—')}
+        ${this.stat('🏁 Media', media ? F.num(media, 0) + ' km/h' : '—')}
+      </div>
+      ${x.tracciato ? `<div class="map-card" style="margin-top:12px"><div class="map tall" id="mappaViaggio"></div></div>` : ''}
+      ${tappe.length ? `<div class="section-title"><h3>Tappe</h3>${maps ? `<a href="${maps}" target="_blank" rel="noopener">Apri in Maps</a>` : ''}</div>
+        <div class="card"><ol class="tappe">${tappe.map((t, i) => `<li class="${i === 0 ? 'start' : i === tappe.length - 1 ? 'end' : ''}">${esc(t)}</li>`).join('')}</ol></div>` : ''}
+      ${x.note ? `<div class="card" style="margin-top:12px"><div class="muted">📝 Note</div>${esc(x.note).replace(/\n/g, '<br>')}</div>` : ''}
+      <div class="btn-row" style="margin-top:14px">
+        ${gpx || x.tracciato ? `<button class="btn secondary" data-act="via-gpx" data-id="${x.id}">${ICON.download} ${gpx ? (gpx.url && !gpx._file ? 'Apri GPX su Drive' : 'Scarica GPX') : 'Scarica GPX (semplificato)'}</button>` : ''}
+        <button class="btn secondary" data-edit="viaggi:${x.id}">${ICON.edit} Modifica</button>
+      </div>
+      ${gpx ? `<p class="muted" style="margin:10px 6px">${Docs.statoChip(gpx) || '☁️ File GPX salvato su Google Drive'}</p>` : ''}`;
+    if (x.tracciato) Viaggi.mappa($('#mappaViaggio'), [x], true);
+  },
+
   /* =========================================================
      ALTRO
      ========================================================= */
@@ -982,6 +1111,7 @@ const UI = {
       <div class="list">
         ${item('data-go="#scadenze"', '🔔', 't-maint', 'Scadenze e promemoria', nScad ? `${nScad} da controllare` : 'Tutto in regola ✓')}
         ${item('data-go="#movimenti"', '📒', 't-fuel', 'Tutti i movimenti', 'Storico completo con filtri')}
+        ${item('data-go="#viaggi"', '🗺️', 't-exp', 'Viaggi e giri', DB.list('viaggi').length ? `${DB.list('viaggi').length} viaggi · ${F.num(Viaggi.totali(DB.list('viaggi')).km)} km` : 'Tappe, km e tracciati GPX')}
         ${item('data-go="#documenti"', '🗂️', 't-doc', 'Documenti', conta[6] ? `${conta[6]} documenti · ricevute, polizze, libretto` : 'Ricevute, polizze, libretto…')}
         ${item('data-act="sheets"', '📗', 't-exp', 'Google Sheets', Sync.attivo() ? (Sync.stato === 'errore' ? '⚠️ Errore di sincronizzazione' : 'Collegato · sincronizzazione automatica') : 'Non collegato · tocca per collegare')}
         ${item('data-act="soon"', '📄', 't-doc', 'Report PDF / Excel', 'In arrivo nel prossimo aggiornamento')}
@@ -1011,6 +1141,7 @@ const UI = {
         <div><span>Spese</span><b>${conta[3]}</b></div>
         <div><span>Bolli / Assicurazioni</span><b>${conta[4]} / ${conta[5]}</b></div>
         <div><span>Documenti</span><b>${conta[6]}</b></div>
+        <div><span>Viaggi</span><b>${DB.list('viaggi').length}</b></div>
       </div>
       <p class="muted" style="text-align:center;margin:18px 0 4px">Fatto con ❤️ per il tuo garage</p>`;
   },
@@ -1162,6 +1293,7 @@ const UI = {
         ${opt('manutenzioni', '🔧', 't-maint', 'Manutenzione', 'Tagliando, gomme…')}
         ${opt('bolli', '📄', 't-doc', 'Bollo', 'Pagamento e scadenza')}
         ${opt('assicurazioni', '🛡️', 't-doc', 'Assicurazione', 'Polizza e scadenza')}
+        ${opt('viaggi', '🗺️', 't-exp', 'Viaggio / giro', 'Tappe, km, file GPX')}
         ${opt('documenti', '🗂️', 't-doc', 'Documento', 'Libretto, polizza, ricevuta…')}
         ${opt('veicoli', '🚗', 't-fuel', 'Nuovo mezzo', 'Auto, moto, scooter…')}
       </div>`);
@@ -1366,6 +1498,77 @@ const UI = {
       }
     },
 
+    viaggi: {
+      titolo: ['🗺️ Nuovo viaggio', '🗺️ Modifica viaggio'],
+      campi: () => [
+        { k: 'veicoloId', label: 'Con quale mezzo?', type: 'veicolo', req: true },
+        { k: '_gpx', type: 'gpx', label: '📍 Tracciato GPX (facoltativo)' },
+        { k: 'titolo', label: 'Nome del giro', placeholder: 'es. Giro dei Colli Euganei', req: true },
+        [{ k: 'data', label: 'Data', type: 'date', req: true }, { k: 'dataFine', label: 'Fino al (se più giorni)', type: 'date' }],
+        [{ k: 'km', label: 'Km fatti', type: 'dec', big: true }, { k: 'durata', label: 'Durata', placeholder: 'es. 5:30' }],
+        { k: 'tappe', label: 'Tappe', type: 'textarea', placeholder: 'Una per riga, es.\nPadova\nAsiago\nPasso Vezzena\nLevico Terme', hint: 'Una tappa per riga, in ordine' },
+        { k: '_tappeAuto', type: 'tappeauto' },
+        { more: [
+          { k: 'dislivello', label: 'Dislivello in salita (m)', type: 'int' },
+          { k: 'note', label: 'Note', type: 'textarea', placeholder: 'Com\'è andata, dove avete mangiato, con chi…' }
+        ] }
+      ],
+      mount(root, rec) {
+        const q = n => root.querySelector(`[name=${n}]`);
+        const box = root.querySelector('#gpxBox');
+        const doc = rec ? Viaggi.gpxDoc(rec.id) : null;
+        root._gpx = null; root._gpxRimosso = false;
+        const draw = () => {
+          const g = root._gpx;
+          let html = '';
+          if (g) html = `<div class="att"><span class="em">🗺️</span><div class="att-name">${esc(g.nomeFile)}<small>nuovo · ${F.num(g.km, 1)} km · ${F.num(g.nPunti)} punti${g.dislivello ? ' · +' + F.num(g.dislivello) + ' m' : ''}</small></div><button type="button" class="att-x" id="gpxX" aria-label="Togli">✕</button></div>`;
+          else if (!root._gpxRimosso && (doc || (rec && rec.tracciato))) html = `<div class="att"><span class="em">🗺️</span><div class="att-name">${esc(doc ? doc.fileNome || 'Tracciato GPX' : 'Tracciato salvato')}<small>${doc && doc.url ? 'su Google Drive' : doc ? 'da caricare su Drive' : 'solo tracciato'}</small></div><button type="button" class="att-x" id="gpxX" aria-label="Togli">✕</button></div>`;
+          box.innerHTML = html;
+          root.querySelector('#gpxAdd').lastChild.textContent = html ? ' Cambia GPX' : ' Carica il file GPX';
+          const x = root.querySelector('#gpxX');
+          if (x) x.onclick = () => { if (root._gpx) root._gpx = null; else root._gpxRimosso = true; draw(); };
+          root.querySelector('#tappeAuto').hidden = !(root._gpx || (!root._gpxRimosso && rec && rec.tracciato));
+        };
+        root.querySelector('#gpxAdd').onclick = () => {
+          const inp = document.createElement('input');
+          inp.type = 'file'; inp.accept = '.gpx,application/gpx+xml,application/xml,text/xml,application/octet-stream';
+          inp.onchange = async () => {
+            const f = inp.files[0]; if (!f) return;
+            try {
+              const g = await Viaggi.leggiGpx(f);
+              root._gpx = g; root._gpxRimosso = false;
+              // compilo i campi vuoti con i dati del GPX
+              if (g.km) q('km').value = String(g.km).replace('.', ',');
+              if (g.durataMin && !q('durata').value) q('durata').value = Viaggi.fmtDurata(g.durataMin);
+              if (g.dislivello && !q('dislivello').value) q('dislivello').value = g.dislivello;
+              if (g.data && (!rec || !rec.id)) q('data').value = g.data;
+              if (g.nome && !q('titolo').value) q('titolo').value = g.nome;
+              UI.toast(`GPX letto ✓ ${F.num(g.km, 1)} km`);
+            } catch (err) { UI.toast(err.message || 'GPX non leggibile'); }
+            draw();
+          };
+          inp.click();
+        };
+        root.querySelector('#tappeAuto').onclick = async e => {
+          const b = e.currentTarget, testo = b.textContent;
+          const punti = root._gpx ? root._gpx.punti : Viaggi.decode(rec && rec.tracciato);
+          b.disabled = true; b.textContent = '🔎 Cerco i paesi lungo il percorso…';
+          try {
+            const nomi = await Viaggi.trovaTappe(punti);
+            const ta = q('tappe');
+            if (!ta.value.trim() || confirm('Sostituire le tappe scritte con quelle trovate?\n\n' + nomi.join(' → '))) ta.value = nomi.join('\n');
+          } catch (err) { UI.toast(err.message); }
+          b.disabled = false; b.textContent = testo;
+        };
+        draw();
+      },
+      valida(o) {
+        if (!o.km && !o.tappe && !o._haGpx) { UI.toast('Aggiungi almeno i km, le tappe o il GPX'); return false; }
+        if (o.dataFine && o.dataFine < o.data) { UI.toast('La data di fine è prima dell\'inizio'); return false; }
+        return true;
+      }
+    },
+
     documenti: {
       titolo: ['🗂️ Nuovo documento', '🗂️ Modifica documento'],
       campi: () => [
@@ -1475,6 +1678,12 @@ const UI = {
       case 'docfile':
         return `<div class="field"><span class="lbl">${esc(f.label)}</span><div class="att-list" id="attList"></div>
           <button type="button" class="btn secondary att-add" id="attAdd">${ICON.clip} Scegli foto o PDF</button></div>`;
+      case 'gpx':
+        return `<div class="field"><span class="lbl">${esc(f.label)}</span><div class="att-list" id="gpxBox"></div>
+          <button type="button" class="btn secondary att-add" id="gpxAdd">${ICON.upload} Carica il file GPX</button>
+          <div class="hint">Calcolo da solo km, durata e dislivello e disegno il percorso. Il file finisce su Google Drive.</div></div>`;
+      case 'tappeauto':
+        return `<button type="button" class="btn secondary block" id="tappeAuto" hidden>📍 Trova le tappe dal tracciato</button>`;
       case 'photo':
         return `<div class="field"><div class="photo-pick">
           <div class="vavatar" id="photoPrev">${val ? `<img src="${val}" alt="">` : '📷'}</div>
@@ -1509,11 +1718,13 @@ const UI = {
       if (table === 'manutenzioni') rec.tipo = 'Tagliando';
       if (table === 'spese') rec.categoria = 'Lavaggio';
       if (table === 'documenti') { rec.categoria = preset.categoria || 'Carta di circolazione'; delete rec.dataPagamento; delete rec.inizio; }
+      if (table === 'viaggi') { delete rec.dataPagamento; delete rec.inizio; }
       if (table === 'assicurazioni') {
         rec.copertura = 'RC auto';
         const d = D.parse(oggi); d.setFullYear(d.getFullYear() + 1); rec.scadenza = D.iso(d);
       }
     }
+    if (table === 'viaggi' && rec.tappe) rec.tappe = Viaggi.tappe(rec).join('\n');
     const campi = def.campi(rec);
     const flat = this.appiattisci(campi);
     this.openSheet(def.titolo[id ? 1 : 0], `
@@ -1604,7 +1815,7 @@ const UI = {
       e.preventDefault();
       const o = { ...rec };
       for (const f of flat) {
-        if (['photo', 'live'].includes(f.type)) continue;
+        if (['photo', 'live', 'gpx', 'tappeauto'].includes(f.type)) continue;
         const el = root.querySelector(`[name=${f.k}]`);
         if (!el) continue;
         if (f.type === 'switch') o[f.k] = el.checked;
@@ -1621,7 +1832,14 @@ const UI = {
         this.toast('Manca: ' + missing.map(f => f.label.replace(/^\W+\s/, '')).join(', '));
         return;
       }
+      if (table === 'viaggi') {
+        o.tappe = Viaggi.tappe({ tappe: o.tappe }).join(' → ');
+        if (root._gpx) o.tracciato = root._gpx.enc;
+        else if (root._gpxRimosso) o.tracciato = '';
+        o._haGpx = !!o.tracciato;
+      }
       if (def.valida && !def.valida(o)) return;
+      delete o._haGpx;
       if (isDoc) {
         if (!att.nuovi.length && !o.url && !o._file) { this.toast('Scegli il file (foto o PDF)'); return; }
         if (!o.titolo) o.titolo = o.categoria;
@@ -1650,10 +1868,11 @@ const UI = {
             _file: n.dataUrl, mime: n.mime, dimensione: n.dimensione, fileNome: titolo + '.' + n.est });
         }
       }
+      if (table === 'viaggi') await Viaggi.salvaGpx(o, root._gpx, root._gpxRimosso);
       if (o.veicoloId) this.state.ultimoVeicolo = o.veicoloId;
       this.saveUi();
       this.closeSheet();
-      this.toast(id ? 'Modifiche salvate ✓' : { rifornimenti: 'Rifornimento salvato ⛽', spese: 'Spesa salvata 🧾', manutenzioni: 'Manutenzione salvata 🔧', bolli: 'Bollo salvato 📄', assicurazioni: 'Assicurazione salvata 🛡️', documenti: 'Documento salvato 🗂️', veicoli: 'Benvenuto in garage! 🎉' }[table]);
+      this.toast(id ? 'Modifiche salvate ✓' : { rifornimenti: 'Rifornimento salvato ⛽', spese: 'Spesa salvata 🧾', manutenzioni: 'Manutenzione salvata 🔧', bolli: 'Bollo salvato 📄', assicurazioni: 'Assicurazione salvata 🛡️', documenti: 'Documento salvato 🗂️', viaggi: 'Viaggio salvato 🗺️', veicoli: 'Benvenuto in garage! 🎉' }[table]);
       this.render();
     };
 
@@ -1668,7 +1887,9 @@ const UI = {
         if (!confirm(isDoc ? 'Eliminare questo documento?\nIl file su Google Drive finisce nel cestino (lo recuperi entro 30 giorni).' : 'Eliminare questo elemento?')) return;
         if (esistenti.length && confirm(`Eliminare anche ${esistenti.length === 1 ? 'il documento allegato' : `i ${esistenti.length} documenti allegati`}?\n\nOK = elimina anche ${esistenti.length === 1 ? 'quello' : 'quelli'}\nAnnulla = tienili nei Documenti`))
           for (const d of esistenti) await DB.remove('documenti', d.id);
+        if (table === 'viaggi') { const g = Viaggi.gpxDoc(id); if (g) await DB.remove('documenti', g.id); }
         await DB.remove(table, id);
+        if (table === 'viaggi' && location.hash === '#viaggio/' + id) { this.closeSheet(); this.toast('Viaggio eliminato'); location.hash = '#viaggi'; return; }
         this.closeSheet(); this.toast('Eliminato'); this.render();
       }
     };

@@ -78,11 +78,17 @@ const Sync = {
     const c = this.cfg();
     try {
       await this.caricaFile(c);
-      const { changes, sent, n } = DB.pending(!c.lastSync);
+      const escludi = c.tabelleNo || [];
+      const { changes, sent, n } = DB.pending(!c.lastSync, escludi);
       const res = await this._post(c.url, { token: c.token, changes });
       if (!res.ok) throw new Error(res.error || 'Errore sconosciuto');
       const cambiati = await DB.mergeFromServer(res.data || {}, sent);
       const c2 = this.cfg();
+      // tabelle che lo script del foglio non gestisce ancora: le riprovo ogni tanto
+      const prima = (c2.tabelleNo || []).length;
+      c2.tabelleNo = TABLES.filter(t => !Array.isArray((res.data || {})[t]));
+      if (prima && !c2.tabelleNo.length) setTimeout(() => this.schedule(300), 0);
+      if (c2.tabelleNo.length && (!c2.provaTabelle || Date.now() - c2.provaTabelle > 6 * 3600e3)) { c2.provaTabelle = Date.now(); c2.tabelleNo = []; }
       c2.lastSync = new Date().toISOString();
       c2.ultimoInvio = n;
       this.saveCfg(c2);
