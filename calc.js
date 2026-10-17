@@ -19,6 +19,9 @@ const CONFIG = {
     'Batteria': '🔋', 'Distribuzione': '⛓️', 'Revisione': '✅', 'Catena moto': '⛓️', 'Liquidi': '💧', 'Manutenzione GPL': '🔥', 'Altro': '🔧' },
   emojiSpesa: { 'Carburante': '⛽', 'Manutenzione': '🔧', 'Assicurazione': '🛡️', 'Bollo': '📄', 'Revisione': '✅', 'Pneumatici': '🛞',
     'Ricambi': '⚙️', 'Lavaggio': '🧽', 'Parcheggi': '🅿️', 'Pedaggi': '🛣️', 'Accessori': '🎒', 'Multe': '🚨', 'Altro': '📦' },
+  categorieDocumento: ['Manutenzione', 'Assicurazione', 'Bollo', 'Revisione', 'Carta di circolazione', 'Certificato di proprietà', 'Spese', 'Altro'],
+  emojiDocumento: { 'Manutenzione': '🔧', 'Assicurazione': '🛡️', 'Bollo': '📄', 'Revisione': '✅', 'Carta di circolazione': '🪪',
+    'Certificato di proprietà': '📜', 'Spese': '🧾', 'Altro': '📁' },
   iconaTipo: { 'Auto': '🚗', 'Moto': '🏍️', 'Scooter': '🛵', 'Ciclomotore': '🛵', 'Trattorino / attrezzo': '🚜', 'Altro': '🚙' },
   periodi: [
     ['oggi', 'Oggi'], ['settimana', 'Settimana'], ['mese', 'Mese'], ['trimestre', 'Trimestre'],
@@ -321,6 +324,14 @@ const Calc = {
       if (b) out.push(this._scad(v, 'Bollo', b.scadenza, 0, kmNow, u, oggi, 'bollo'));
       const a = last('assicurazioni', 'scadenza');
       if (a) out.push(this._scad(v, 'Assicurazione' + (a.compagnia ? ' · ' + a.compagnia : ''), a.scadenza, 0, kmNow, u, oggi, 'assicurazione'));
+      // documenti con scadenza (es. carta di circolazione, revisione): conta solo il più recente per categoria
+      const docScad = {};
+      for (const d of DB.list('documenti').filter(x => x.veicoloId === v.id && x.scadenza && !x.rifId)) {
+        if ((d.categoria === 'Bollo' && b) || (d.categoria === 'Assicurazione' && a)) continue;
+        const k = d.categoria || 'Altro';
+        if (!docScad[k] || d.scadenza > docScad[k].scadenza) docScad[k] = d;
+      }
+      for (const d of Object.values(docScad)) out.push(this._scad(v, d.titolo || d.categoria, d.scadenza, 0, kmNow, u, oggi, 'documento'));
     }
     const peso = { scaduta: 0, vicina: 1, ok: 2 };
     return out.sort((x, y) => peso[x.stato] - peso[y.stato] || (x.giorni ?? 99999) - (y.giorni ?? 99999));

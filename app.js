@@ -3,7 +3,7 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '2.1.4';
+const APP_VERSION = '2.2.0';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -33,6 +33,8 @@ const ICON = {
   chevron: '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',
   cloud: '<svg viewBox="0 0 24 24"><path d="M7 18a5 5 0 0 1-.6-9.96A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/></svg>',
   cloudOff: '<svg viewBox="0 0 24 24"><path d="M7 18a5 5 0 0 1-.6-9.96M10 4.3A6 6 0 0 1 18 9a4.5 4.5 0 0 1 2.4 8.3M3 3l18 18"/></svg>',
+  clip: '<svg viewBox="0 0 24 24"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4l7.7-7.7"/></svg>',
+  open: '<svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
   refresh: '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5L20 16M20 20v-4h-4"/></svg>'
 };
 
@@ -44,11 +46,108 @@ const TIPI_MOV = {
   assicurazioni: { e: '🛡️', t: 't-doc', n: 'Assicurazioni' }
 };
 
+/* ---------- Documenti: nomi file e cartelle su Google Drive ---------- */
+const Docs = {
+  MAX_MB: 15,
+  meseAnno(data) { if (!data) return ''; const d = D.parse(data); return D.monthLong(d.getMonth()) + ' ' + d.getFullYear(); },
+  anno(data) { return data ? data.slice(0, 4) : ''; },
+
+  /** Categoria del documento allegato a un evento */
+  categoria(table, r) {
+    if (table === 'manutenzioni') return r.tipo === 'Revisione' ? 'Revisione' : 'Manutenzione';
+    if (table === 'spese') return ['Assicurazione', 'Bollo', 'Revisione'].includes(r.categoria) ? r.categoria : 'Spese';
+    if (table === 'bolli') return 'Bollo';
+    if (table === 'assicurazioni') return 'Assicurazione';
+    return 'Altro';
+  },
+  dataEvento(table, r) { return { bolli: r.dataPagamento, assicurazioni: r.inizio }[table] || r.data || D.today(); },
+
+  /** Sottocartella: anno (2025) o periodo assicurativo (2025-2026) */
+  cartella(categoria, data, scadenza) {
+    const y = this.anno(data);
+    if (!y) return '';
+    if (categoria === 'Assicurazione') {
+      const y2 = this.anno(scadenza);
+      return y + '-' + (y2 && y2 > y ? y2 : +y + 1);
+    }
+    if (['Manutenzione', 'Revisione', 'Bollo', 'Spese'].includes(categoria)) return y;
+    return '';
+  },
+  cartellaEvento(table, r, cat) {
+    if (table === 'bolli') return this.anno(r.periodoDa || r.dataPagamento);
+    return this.cartella(cat, this.dataEvento(table, r), r.scadenza);
+  },
+
+  /** Nome del file su Drive, es. "Manutenzione Tagliando - Febbraio 2025" */
+  titoloEvento(table, r) {
+    const quando = this.meseAnno(this.dataEvento(table, r));
+    switch (table) {
+      case 'manutenzioni': return r.tipo === 'Revisione' ? 'Revisione - ' + quando : 'Manutenzione ' + (r.tipo || '') + ' - ' + quando;
+      case 'spese': return 'Spesa ' + (r.categoria || '') + ' - ' + quando;
+      case 'bolli': return 'Bollo ' + (this.anno(r.periodoDa || r.dataPagamento));
+      case 'assicurazioni': return 'Assicurazione' + (r.compagnia ? ' ' + r.compagnia : '') + ' ' + this.cartella('Assicurazione', r.inizio, r.scadenza);
+    }
+    return 'Documento - ' + quando;
+  },
+
+  collegati(table, id) { return id ? DB.list('documenti').filter(d => d.rifTabella === table && d.rifId === id) : []; },
+
+  emojiFile(d) {
+    const m = d.mime || (d._file ? d._file.slice(5, 30) : '');
+    if (/pdf/.test(m)) return '📕';
+    if (/image/.test(m)) return '🖼️';
+    return '📄';
+  },
+
+  /** Legge un file scelto dall'utente: le foto vengono rimpicciolite, i PDF restano così */
+  async leggi(file) {
+    if (file.size > this.MAX_MB * 1048576) throw new Error(`"${file.name}" è troppo grande (max ${this.MAX_MB} MB)`);
+    let dataUrl = null, mime = file.type || 'application/octet-stream';
+    if (/^image\//.test(mime) && !/gif|svg/.test(mime)) {
+      try { dataUrl = await UI.resizeImage(file, 1800, 0.82); mime = 'image/jpeg'; } catch (e) { dataUrl = null; }
+    }
+    if (!dataUrl) dataUrl = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(fr.error); fr.readAsDataURL(file); });
+    const est = mime === 'image/jpeg' ? 'jpg' : (file.name.split('.').pop() || '').toLowerCase();
+    return { dataUrl, mime, est, nomeOriginale: file.name, dimensione: Math.round(dataUrl.length * 0.75) };
+  },
+
+  scegli(multipli = true) {
+    return new Promise(resolve => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*,application/pdf'; inp.multiple = multipli;
+      inp.onchange = () => resolve([...inp.files]);
+      inp.click();
+    });
+  },
+
+  /** Apre il documento: da Drive se è già caricato, altrimenti la copia sul telefono */
+  apri(d) {
+    if (!d) return;
+    if (d.url) { window.open(d.url, '_blank', 'noopener'); return; }
+    if (d._file) {
+      const [h, b64] = d._file.split(',');
+      const bin = atob(b64), arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([arr], { type: (h.match(/data:([^;]+)/) || [])[1] || 'application/octet-stream' }));
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return;
+    }
+    UI.toast('Il file non è disponibile');
+  },
+
+  statoChip(d) {
+    if (d.url) return '';
+    if (d._file) return `<span class="chip warn">${Sync.attivo() ? '⏳ da caricare' : '📱 solo sul telefono'}</span>`;
+    return '';
+  }
+};
+
 const UI = {
   state: {
     statPeriodo: 'mese', statVeicolo: 'tutti', statCustom: {}, statTab: 'riepilogo',
     vehTab: 'panoramica', ultimoVeicolo: null, movTipo: 'tutti', movVeicolo: 'tutti',
-    nome: '', colore: 'oceano'
+    nome: '', colore: 'oceano', docVeicolo: 'tutti'
   },
 
   /* ---------- Avvio ---------- */
@@ -126,9 +225,9 @@ const UI = {
     const hash = location.hash.replace('#', '') || 'home';
     const [route, param] = hash.split('/');
     Charts.clear();
-    const parent = { veicolo: 'mezzi', scadenze: 'altro', movimenti: 'home' }[route] || route;
+    const parent = { veicolo: 'mezzi', scadenze: 'altro', movimenti: 'home', documenti: 'altro' }[route] || route;
     document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === parent));
-    $('#btnBack').hidden = !['veicolo', 'scadenze', 'movimenti'].includes(route);
+    $('#btnBack').hidden = !['veicolo', 'scadenze', 'movimenti', 'documenti'].includes(route);
     const view = $('#view');
     const nuovaPagina = this._lastHash !== hash;
     if (nuovaPagina) { view.style.animation = 'none'; void view.offsetWidth; view.style.animation = ''; }
@@ -140,7 +239,8 @@ const UI = {
       statistiche: () => this.vStatistiche(),
       altro: () => this.vAltro(),
       scadenze: () => this.vScadenze(),
-      movimenti: () => this.vMovimenti()
+      movimenti: () => this.vMovimenti(),
+      documenti: () => this.vDocumenti()
     };
     (views[route] || views.home)();
     if (nuovaPagina) window.scrollTo(0, 0);
@@ -177,6 +277,8 @@ const UI = {
       case 'sheets': this.openSyncSheet(); break;
       case 'sync-now': Sync.run(true).then(() => this.openSyncSheet()); break;
       case 'soon': this.toast('In arrivo nel prossimo aggiornamento 🚀'); break;
+      case 'doc-open': Docs.apri(DB.get('documenti', d.id)); break;
+      case 'dveicolo': set('docVeicolo', d.v); break;
     }
   },
 
@@ -239,7 +341,7 @@ const UI = {
     return `<span class="chip ${cls}">${esc(this.testoScadenza(sc))}</span>`;
   },
   emojiScadenza(sc) {
-    return { bollo: '📄', assicurazione: '🛡️', revisione: '✅' }[sc.tipo] || CONFIG.emojiManutenzione[sc.titolo] || '🔧';
+    return { bollo: '📄', assicurazione: '🛡️', revisione: '✅', documento: '📁' }[sc.tipo] || CONFIG.emojiManutenzione[sc.titolo] || '🔧';
   },
 
   oggiLungo() {
@@ -442,6 +544,8 @@ const UI = {
         t = 'Assicurazione' + (r.compagnia ? ' · ' + esc(r.compagnia) : '');
         s = vn + D.fmt(r.inizio) + ' → ' + D.fmt(r.scadenza); break;
     }
+    const nDoc = Docs.collegati(m.t, r.id).length;
+    if (nDoc) s += ` · 📎${nDoc > 1 ? ' ' + nDoc : ''}`;
     return `
       <div class="item" data-edit="${m.t}:${r.id}">
         <div class="ic ${TIPI_MOV[m.t].t}">${em}</div>
@@ -463,6 +567,63 @@ const UI = {
         ${veicoli.map(v => `<button class="${st.movVeicolo === v.id ? 'on' : ''}" data-act="mveicolo" data-v="${v.id}">${this.avatar(v, 'sm')}${esc(this.nomeVeicolo(v))}</button>`).join('')}
       </div>` : ''}
       ${this.listaMovimenti(st.movVeicolo === 'tutti' ? null : st.movVeicolo, 0, st.movTipo === 'tutti' ? null : [st.movTipo], true)}`;
+  },
+
+  /* ---------- Documenti ---------- */
+  itemDocumento(d, mostraVeicolo) {
+    const v = DB.get('veicoli', d.veicoloId);
+    const sub = [];
+    if (mostraVeicolo) sub.push(esc(this.nomeVeicolo(v)));
+    if (d.data) sub.push(D.fmt(d.data));
+    if (d.scadenza) sub.push('scade ' + D.fmt(d.scadenza));
+    if (d.rifId) sub.push(DB.get(d.rifTabella, d.rifId) ? '🔗 ' + ({ manutenzioni: 'manutenzione', spese: 'spesa', bolli: 'bollo', assicurazioni: 'assicurazione' }[d.rifTabella] || 'evento') : '🔗 evento eliminato');
+    return `
+      <div class="item doc" data-act="doc-open" data-id="${d.id}">
+        <div class="ic t-doc">${Docs.emojiFile(d)}</div>
+        <div class="main"><div class="t">${esc(d.titolo || d.fileNome || 'Documento')}</div><div class="s">${sub.join(' · ')}</div></div>
+        <div class="r" style="display:flex;align-items:center;gap:6px">${Docs.statoChip(d)}
+          <button class="icon-btn sm" data-edit="documenti:${d.id}" aria-label="Modifica documento">${ICON.edit}</button></div>
+      </div>`;
+  },
+
+  listaDocumenti(vid) {
+    const docs = DB.list('documenti').filter(d => !vid || d.veicoloId === vid);
+    if (!docs.length) return `<div class="card empty"><div class="e-ic">🗂️</div><h4>Nessun documento</h4>
+      <p>Allega la ricevuta quando registri una manutenzione, oppure aggiungi qui libretto, polizza e altri documenti.</p></div>`;
+    const ordine = CONFIG.categorieDocumento;
+    const perCat = {};
+    docs.forEach(d => { const c = ordine.includes(d.categoria) ? d.categoria : 'Altro'; (perCat[c] = perCat[c] || []).push(d); });
+    const v = vid ? DB.get('veicoli', vid) : null;
+    return `${v ? `<div class="note-box" style="margin:10px 0 0">📂 Su Google Drive: <b>Garage › ${esc(this.nomeVeicolo(v))}</b>, divisi per categoria e anno.</div>` : ''}` +
+      ordine.filter(c => perCat[c]).map(c => {
+        const lista = perCat[c].sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+        const gruppi = [];
+        lista.forEach(d => {
+          const k = d.cartella || '';
+          let g = gruppi.find(x => x.k === k);
+          if (!g) gruppi.push(g = { k, items: [] });
+          g.items.push(d);
+        });
+        gruppi.sort((a, b) => b.k.localeCompare(a.k));
+        return `<div class="section-title"><h3>${CONFIG.emojiDocumento[c] || '📁'} ${esc(c)}</h3><span class="muted">${lista.length}</span></div>` +
+          gruppi.map(g => `${g.k ? `<div class="day-label">📂 ${esc(g.k)}</div>` : ''}<div class="list">${g.items.map(d => this.itemDocumento(d, !vid)).join('')}</div>`).join('');
+      }).join('');
+  },
+
+  vDocumenti() {
+    this.setTitle('Documenti');
+    const st = this.state;
+    const veicoli = this.veicoliOrdinati();
+    if (st.docVeicolo !== 'tutti' && !DB.get('veicoli', st.docVeicolo)) st.docVeicolo = 'tutti';
+    const vid = st.docVeicolo === 'tutti' ? null : st.docVeicolo;
+    $('#view').innerHTML = `
+      ${veicoli.length > 1 ? `<div class="pills">
+        <button class="${!vid ? 'on' : ''}" data-act="dveicolo" data-v="tutti">🚦 Tutti i mezzi</button>
+        ${veicoli.map(v => `<button class="${vid === v.id ? 'on' : ''}" data-act="dveicolo" data-v="${v.id}">${this.avatar(v, 'sm')}${esc(this.nomeVeicolo(v))}</button>`).join('')}
+      </div>` : ''}
+      <div class="btn-row" style="margin:8px 0 4px"><button class="btn secondary" data-act="new" data-table="documenti" data-vid="${vid || ''}">${ICON.plus} Aggiungi documento</button></div>
+      ${this.listaDocumenti(vid)}
+      ${!Sync.attivo() ? '<p class="muted" style="margin:14px 6px">⚠️ Collega Google Sheets per salvare i documenti anche su Google Drive. Ora sono solo su questo telefono.</p>' : ''}`;
   },
 
   /* =========================================================
@@ -487,9 +648,10 @@ const UI = {
     this.state.ultimoVeicolo = id; this.saveUi();
     this.setTitle(this.nomeVeicolo(v));
     const tab = this.state.vehTab || 'panoramica';
-    const tabs = [['panoramica', '📊 Panoramica'], ['rifornimenti', '⛽ Rifornimenti'], ['manutenzioni', '🔧 Manutenzioni'], ['spese', '🧾 Spese'], ['documenti', '📄 Bollo e assicurazione']];
+    const tabs = [['panoramica', '📊 Panoramica'], ['rifornimenti', '⛽ Rifornimenti'], ['manutenzioni', '🔧 Manutenzioni'], ['spese', '🧾 Spese'], ['documenti', '📄 Bollo e assicurazione'], ['archivio', '📁 Documenti']];
     let body = '';
     if (tab === 'panoramica') body = this.vVeicoloPanoramica(v);
+    else if (tab === 'archivio') body = `<div class="btn-row" style="margin:0 0 4px"><button class="btn secondary" data-act="new" data-table="documenti" data-vid="${v.id}">${ICON.plus} Aggiungi documento</button></div>` + this.listaDocumenti(v.id);
     else {
       const map = { rifornimenti: ['rifornimenti'], manutenzioni: ['manutenzioni'], spese: ['spese'], documenti: ['bolli', 'assicurazioni'] };
       const btns = tab === 'documenti'
@@ -520,6 +682,8 @@ const UI = {
       </div>
       <div class="pills" style="margin-top:14px;margin-bottom:6px">${tabs.map(([k, l]) => `<button class="${k === tab ? 'on' : ''}" data-act="tab" data-tab="${k}">${l}</button>`).join('')}</div>
       ${body}`;
+    const on = $('#view .pills button.on');
+    if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' });
   },
 
   vVeicoloPanoramica(v) {
@@ -810,7 +974,7 @@ const UI = {
   vAltro() {
     this.setTitle('Altro');
     const nScad = Calc.scadenze().filter(x => x.stato !== 'ok').length;
-    const conta = ['veicoli', 'rifornimenti', 'manutenzioni', 'spese', 'bolli', 'assicurazioni'].map(t => DB.list(t).length);
+    const conta = ['veicoli', 'rifornimenti', 'manutenzioni', 'spese', 'bolli', 'assicurazioni', 'documenti'].map(t => DB.list(t).length);
     const tema = TEMI.find(x => x.k === this.state.colore) || TEMI[0];
     const modo = { dark: 'scuro', light: 'chiaro', auto: 'automatico' }[this.modo()];
     const item = (act, em, cls, t, s, extra = '') => `<div class="item" ${act}><div class="ic ${cls}">${em}</div><div class="main"><div class="t">${t}</div><div class="s">${s}</div></div>${extra || ICON.chevron}</div>`;
@@ -818,6 +982,7 @@ const UI = {
       <div class="list">
         ${item('data-go="#scadenze"', '🔔', 't-maint', 'Scadenze e promemoria', nScad ? `${nScad} da controllare` : 'Tutto in regola ✓')}
         ${item('data-go="#movimenti"', '📒', 't-fuel', 'Tutti i movimenti', 'Storico completo con filtri')}
+        ${item('data-go="#documenti"', '🗂️', 't-doc', 'Documenti', conta[6] ? `${conta[6]} documenti · ricevute, polizze, libretto` : 'Ricevute, polizze, libretto…')}
         ${item('data-act="sheets"', '📗', 't-exp', 'Google Sheets', Sync.attivo() ? (Sync.stato === 'errore' ? '⚠️ Errore di sincronizzazione' : 'Collegato · sincronizzazione automatica') : 'Non collegato · tocca per collegare')}
         ${item('data-act="soon"', '📄', 't-doc', 'Report PDF / Excel', 'In arrivo nel prossimo aggiornamento')}
       </div>
@@ -845,6 +1010,7 @@ const UI = {
         <div><span>Manutenzioni</span><b>${conta[2]}</b></div>
         <div><span>Spese</span><b>${conta[3]}</b></div>
         <div><span>Bolli / Assicurazioni</span><b>${conta[4]} / ${conta[5]}</b></div>
+        <div><span>Documenti</span><b>${conta[6]}</b></div>
       </div>
       <p class="muted" style="text-align:center;margin:18px 0 4px">Fatto con ❤️ per il tuo garage</p>`;
   },
@@ -996,6 +1162,7 @@ const UI = {
         ${opt('manutenzioni', '🔧', 't-maint', 'Manutenzione', 'Tagliando, gomme…')}
         ${opt('bolli', '📄', 't-doc', 'Bollo', 'Pagamento e scadenza')}
         ${opt('assicurazioni', '🛡️', 't-doc', 'Assicurazione', 'Polizza e scadenza')}
+        ${opt('documenti', '🗂️', 't-doc', 'Documento', 'Libretto, polizza, ricevuta…')}
         ${opt('veicoli', '🚗', 't-fuel', 'Nuovo mezzo', 'Auto, moto, scooter…')}
       </div>`);
     $('#sheetBody').querySelectorAll('[data-q]').forEach(b => b.onclick = () => this.openForm(b.dataset.q, null, { veicoloId: vid }));
@@ -1126,6 +1293,7 @@ const UI = {
         [{ k: 'costo', label: 'Costo €', type: 'dec', big: true }, { k: 'officina', label: 'Officina', placeholder: 'es. da Mario' }],
         { k: 'descrizione', label: 'Descrizione', placeholder: 'es. olio 10W40 + filtro' },
         [{ k: 'prossimaData', label: '🗓️ Prossima volta (data)', type: 'date' }, { k: 'prossimiKm', label: '🧭 Prossima volta (km)', type: 'int' }],
+        { k: '_allegati', type: 'allegati', label: '📎 Ricevute e documenti' },
         { more: [{ k: 'note', label: 'Note', type: 'textarea' }] }
       ],
       mount(root) {
@@ -1152,6 +1320,7 @@ const UI = {
         { k: 'categoria', label: 'Categoria', type: 'chips', options: CONFIG.categorieSpesa.map(c => ({ v: c, e: CONFIG.emojiSpesa[c] })), req: true },
         [{ k: 'data', label: 'Data', type: 'date', req: true }, { k: 'importo', label: 'Importo €', type: 'dec', big: true, req: true }],
         { k: 'descrizione', label: 'Descrizione', placeholder: 'es. autostrada Milano–Bergamo' },
+        { k: '_allegati', type: 'allegati', label: '📎 Ricevute e documenti' },
         { more: [
           { k: 'km', label: 'Km (facoltativo)', type: 'int', kmHint: true },
           { k: 'note', label: 'Note', type: 'textarea' }
@@ -1167,6 +1336,7 @@ const UI = {
         [{ k: 'dataPagamento', label: 'Pagato il', type: 'date', req: true }, { k: 'importo', label: 'Importo €', type: 'dec', big: true, req: true }],
         [{ k: 'periodoDa', label: 'Valido dal', type: 'date' }, { k: 'periodoA', label: 'Valido al', type: 'date' }],
         { k: 'scadenza', label: '🔔 Prossima scadenza', type: 'date', hint: 'Te la ricordo nelle Scadenze' },
+        { k: '_allegati', type: 'allegati', label: '📎 Ricevute e documenti' },
         { more: [{ k: 'note', label: 'Note', type: 'textarea' }] }
       ],
       mount(root) {
@@ -1185,6 +1355,7 @@ const UI = {
         [{ k: 'compagnia', label: 'Compagnia', req: true, placeholder: 'es. Allianz' }, { k: 'costo', label: 'Costo €', type: 'dec', big: true, req: true }],
         [{ k: 'inizio', label: 'Dal', type: 'date', req: true }, { k: 'scadenza', label: '🔔 Scade il', type: 'date', req: true }],
         { k: 'copertura', label: 'Copertura', type: 'chips', options: ['RC auto', 'RC + furto/incendio', 'Kasko', 'Mini kasko', 'Altro'] },
+        { k: '_allegati', type: 'allegati', label: '📎 Ricevute e documenti' },
         { more: [{ k: 'polizza', label: 'N° polizza' }, { k: 'note', label: 'Note', type: 'textarea' }] }
       ],
       mount(root) {
@@ -1192,6 +1363,33 @@ const UI = {
         q('inizio').addEventListener('change', () => {
           if (q('inizio').value) { const d = D.parse(q('inizio').value); d.setFullYear(d.getFullYear() + 1); q('scadenza').value = D.iso(d); }
         });
+      }
+    },
+
+    documenti: {
+      titolo: ['🗂️ Nuovo documento', '🗂️ Modifica documento'],
+      campi: () => [
+        { k: 'veicoloId', label: 'Mezzo', type: 'veicolo', req: true },
+        { k: '_file', type: 'docfile', label: 'File' },
+        { k: 'categoria', label: 'Categoria', type: 'chips', options: CONFIG.categorieDocumento.map(c => ({ v: c, e: CONFIG.emojiDocumento[c] })), req: true },
+        { k: 'titolo', label: 'Nome del documento', placeholder: 'es. Carta di circolazione', hint: 'Sarà anche il nome del file su Google Drive' },
+        [{ k: 'data', label: 'Data', type: 'date' }, { k: 'cartella', label: 'Anno / periodo', placeholder: 'es. 2025-2026', hint: 'Sottocartella su Drive' }],
+        { k: 'scadenza', label: '🔔 Scadenza (facoltativa)', type: 'date', hint: 'Te la ricordo nelle Scadenze' },
+        { more: [{ k: 'note', label: 'Note', type: 'textarea' }] }
+      ],
+      mount(root, rec) {
+        const q = n => root.querySelector(`[name=${n}]`);
+        // titolo e cartella si compilano da soli finché non li modifichi tu
+        let titoloAuto = !rec || !rec.titolo, cartAuto = !rec || !rec.cartella;
+        q('titolo').addEventListener('input', () => { titoloAuto = !q('titolo').value; });
+        q('cartella').addEventListener('input', () => { cartAuto = !q('cartella').value; });
+        const auto = () => {
+          const c = q('categoria').value, data = q('data').value;
+          if (cartAuto) q('cartella').value = Docs.cartella(c, data, q('scadenza').value);
+          if (titoloAuto) q('titolo').value = c ? c + (['Carta di circolazione', 'Certificato di proprietà'].includes(c) || !data ? '' : ' - ' + Docs.meseAnno(data)) : '';
+        };
+        ['categoria', 'data', 'scadenza'].forEach(n => q(n).addEventListener('change', auto));
+        if (!rec) auto();
       }
     }
   },
@@ -1270,6 +1468,13 @@ const UI = {
         return `<label class="switch"><span>${esc(f.label)}${f.hint ? `<small>${esc(f.hint)}</small>` : ''}</span><input type="checkbox" name="${f.k}" ${val !== false ? 'checked' : ''}><span class="tog"></span></label>`;
       case 'live':
         return `<div class="note-box" data-live hidden></div>`;
+      case 'allegati':
+        return `<div class="field"><span class="lbl">${esc(f.label)}</span><div class="att-list" id="attList"></div>
+          <button type="button" class="btn secondary att-add" id="attAdd">${ICON.clip} Allega ricevuta, foto o PDF</button>
+          <div class="hint">Puoi scattare una foto o scegliere un file. Finisce anche su Google Drive.</div></div>`;
+      case 'docfile':
+        return `<div class="field"><span class="lbl">${esc(f.label)}</span><div class="att-list" id="attList"></div>
+          <button type="button" class="btn secondary att-add" id="attAdd">${ICON.clip} Scegli foto o PDF</button></div>`;
       case 'photo':
         return `<div class="field"><div class="photo-pick">
           <div class="vavatar" id="photoPrev">${val ? `<img src="${val}" alt="">` : '📷'}</div>
@@ -1303,6 +1508,7 @@ const UI = {
       if (table === 'veicoli') { rec.tipo = 'Auto'; rec.alimentazione = 'Benzina'; rec.unita = 'km'; rec.carburante2 = ''; }
       if (table === 'manutenzioni') rec.tipo = 'Tagliando';
       if (table === 'spese') rec.categoria = 'Lavaggio';
+      if (table === 'documenti') { rec.categoria = preset.categoria || 'Carta di circolazione'; delete rec.dataPagamento; delete rec.inizio; }
       if (table === 'assicurazioni') {
         rec.copertura = 'RC auto';
         const d = D.parse(oggi); d.setFullYear(d.getFullYear() + 1); rec.scadenza = D.iso(d);
@@ -1350,6 +1556,50 @@ const UI = {
       if (del) del.onclick = () => { foto = ''; $('#photoPrev').textContent = '📷'; del.remove(); };
     }
 
+    // allegati (ricevute, foto, PDF)
+    const isDoc = table === 'documenti';
+    const att = { nuovi: [], rimossi: new Set() };
+    const esistenti = isDoc ? [] : Docs.collegati(table, id);
+    const attList = $('#attList');
+    if (attList) {
+      const kb = n => n > 1048576 ? F.num(n / 1048576, 1) + ' MB' : F.num(Math.max(1, n / 1024)) + ' KB';
+      const riga = (key, em, nome, info, rimuovibile) => `<div class="att">
+        <span class="em">${em}</span>
+        <button type="button" class="att-name" data-aopen="${key}">${esc(nome)}<small>${info}</small></button>
+        ${rimuovibile ? `<button type="button" class="att-x" data-arm="${key}" aria-label="Togli">✕</button>` : ''}</div>`;
+      const draw = () => {
+        const out = [];
+        if (isDoc) {
+          if (att.nuovi[0]) out.push(riga('n:0', Docs.emojiFile({ mime: att.nuovi[0].mime }), att.nuovi[0].nomeOriginale, 'nuovo · ' + kb(att.nuovi[0].dimensione), false));
+          else if (id && (rec.url || rec._file)) out.push(riga('d:' + id, Docs.emojiFile(rec), rec.fileNome || rec.titolo || 'File', rec.url ? 'su Google Drive · tocca per aprire' : 'sul telefono · tocca per aprire', false));
+        } else {
+          esistenti.filter(d => !att.rimossi.has(d.id)).forEach(d => out.push(riga('d:' + d.id, Docs.emojiFile(d), d.titolo || d.fileNome, d.url ? 'su Google Drive' : 'da caricare', true)));
+          att.nuovi.forEach((n, i) => out.push(riga('n:' + i, Docs.emojiFile({ mime: n.mime }), n.nomeOriginale, 'nuovo · ' + kb(n.dimensione), true)));
+        }
+        attList.innerHTML = out.join('');
+        $('#attAdd').lastChild.textContent = isDoc ? (out.length ? ' Cambia file' : ' Scegli foto o PDF') : (out.length ? ' Allega un altro file' : ' Allega ricevuta, foto o PDF');
+      };
+      attList.addEventListener('click', e => {
+        const o = e.target.closest('[data-aopen]'), x = e.target.closest('[data-arm]');
+        const key = (o || x || {}).dataset?.aopen || (x && x.dataset.arm);
+        if (!key) return;
+        const [k, v] = key.split(':');
+        if (x) { if (k === 'n') att.nuovi.splice(+v, 1); else att.rimossi.add(v); draw(); return; }
+        Docs.apri(k === 'n' ? { _file: att.nuovi[+v].dataUrl } : (DB.get('documenti', v) || rec));
+      });
+      $('#attAdd').onclick = async () => {
+        const files = await Docs.scegli(!isDoc);
+        if (!files.length) return;
+        const btn = $('#attAdd'); btn.disabled = true;
+        for (const f of files) {
+          try { const n = await Docs.leggi(f); if (isDoc) att.nuovi = [n]; else att.nuovi.push(n); }
+          catch (err) { this.toast(err.message || 'File non leggibile'); }
+        }
+        btn.disabled = false; draw();
+      };
+      draw();
+    }
+
     root.onsubmit = async e => {
       e.preventDefault();
       const o = { ...rec };
@@ -1372,39 +1622,70 @@ const UI = {
         return;
       }
       if (def.valida && !def.valida(o)) return;
+      if (isDoc) {
+        if (!att.nuovi.length && !o.url && !o._file) { this.toast('Scegli il file (foto o PDF)'); return; }
+        if (!o.titolo) o.titolo = o.categoria;
+        const n = att.nuovi[0];
+        if (n) {
+          if (o.fileId) o._vecchioFile = o.fileId;
+          Object.assign(o, { _file: n.dataUrl, mime: n.mime, dimensione: n.dimensione, fileNome: o.titolo + '.' + n.est, fileId: '', url: '' });
+        }
+      }
+      if (!o.id) o.id = DB.newId();
       await DB.save(table, o);
+      if (attList && !isDoc) {
+        const cat = Docs.categoria(table, o), dataEv = Docs.dataEvento(table, o), cart = Docs.cartellaEvento(table, o, cat);
+        const restano = esistenti.filter(d => !att.rimossi.has(d.id));
+        const tot = restano.length + att.nuovi.length;
+        for (const did of att.rimossi) await DB.remove('documenti', did);
+        // se cambi mezzo, data o tipo, aggiorno anche i documenti (il foglio sposta il file nella cartella giusta)
+        for (const [i, d] of restano.entries()) {
+          const titolo = Docs.titoloEvento(table, o) + (tot > 1 ? ` (${i + 1})` : '');
+          if (d.veicoloId !== o.veicoloId || d.data !== dataEv || d.categoria !== cat || d.cartella !== cart || d.titolo !== titolo)
+            await DB.save('documenti', { ...d, veicoloId: o.veicoloId, data: dataEv, categoria: cat, cartella: cart, titolo });
+        }
+        for (const [i, n] of att.nuovi.entries()) {
+          const titolo = Docs.titoloEvento(table, o) + (tot > 1 ? ` (${restano.length + i + 1})` : '');
+          await DB.save('documenti', { veicoloId: o.veicoloId, categoria: cat, titolo, data: dataEv, cartella: cart, rifTabella: table, rifId: o.id,
+            _file: n.dataUrl, mime: n.mime, dimensione: n.dimensione, fileNome: titolo + '.' + n.est });
+        }
+      }
       if (o.veicoloId) this.state.ultimoVeicolo = o.veicoloId;
       this.saveUi();
       this.closeSheet();
-      this.toast(id ? 'Modifiche salvate ✓' : { rifornimenti: 'Rifornimento salvato ⛽', spese: 'Spesa salvata 🧾', manutenzioni: 'Manutenzione salvata 🔧', bolli: 'Bollo salvato 📄', assicurazioni: 'Assicurazione salvata 🛡️', veicoli: 'Benvenuto in garage! 🎉' }[table]);
+      this.toast(id ? 'Modifiche salvate ✓' : { rifornimenti: 'Rifornimento salvato ⛽', spese: 'Spesa salvata 🧾', manutenzioni: 'Manutenzione salvata 🔧', bolli: 'Bollo salvato 📄', assicurazioni: 'Assicurazione salvata 🛡️', documenti: 'Documento salvato 🗂️', veicoli: 'Benvenuto in garage! 🎉' }[table]);
       this.render();
     };
 
     const del = $('#btnDel');
     if (del) del.onclick = async () => {
       if (table === 'veicoli') {
-        if (!confirm(`Eliminare "${this.nomeVeicolo(rec)}" e TUTTI i suoi rifornimenti, spese e manutenzioni?`)) return;
+        if (!confirm(`Eliminare "${this.nomeVeicolo(rec)}" e TUTTI i suoi rifornimenti, spese, manutenzioni e documenti?\n(I file su Google Drive finiscono nel cestino di Drive.)`)) return;
         await DB.removeVehicle(id);
         this.closeSheet(); this.toast('Mezzo eliminato');
         location.hash = '#mezzi'; this.render();
       } else {
-        if (!confirm('Eliminare questo elemento?')) return;
+        if (!confirm(isDoc ? 'Eliminare questo documento?\nIl file su Google Drive finisce nel cestino (lo recuperi entro 30 giorni).' : 'Eliminare questo elemento?')) return;
+        if (esistenti.length && confirm(`Eliminare anche ${esistenti.length === 1 ? 'il documento allegato' : `i ${esistenti.length} documenti allegati`}?\n\nOK = elimina anche ${esistenti.length === 1 ? 'quello' : 'quelli'}\nAnnulla = tienili nei Documenti`))
+          for (const d of esistenti) await DB.remove('documenti', d.id);
         await DB.remove(table, id);
         this.closeSheet(); this.toast('Eliminato'); this.render();
       }
     };
   },
 
-  resizeImage(file, max) {
+  resizeImage(file, max, qualita = 0.8) {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
         const k = Math.min(1, max / Math.max(img.width, img.height));
         const c = document.createElement('canvas');
         c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
         URL.revokeObjectURL(img.src);
-        resolve(c.toDataURL('image/jpeg', 0.8));
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', qualita));
       };
       img.onerror = reject;
       img.src = URL.createObjectURL(file);

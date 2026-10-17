@@ -77,6 +77,7 @@ const Sync = {
     this.setStato('sync');
     const c = this.cfg();
     try {
+      await this.caricaFile(c);
       const { changes, sent, n } = DB.pending(!c.lastSync);
       const res = await this._post(c.url, { token: c.token, changes });
       if (!res.ok) throw new Error(res.error || 'Errore sconosciuto');
@@ -95,6 +96,27 @@ const Sync = {
       this._busy = false;
       if (this._again) { this._again = false; this.schedule(300); }
     }
+  },
+
+  /** Carica su Google Drive i file dei documenti salvati sul dispositivo
+      (foto, scansioni, PDF). Se un caricamento non riesce, riprova alla prossima sincronizzazione. */
+  async caricaFile(c) {
+    const daCaricare = (DB.data.documenti || []).filter(d => d._file && !d.deleted);
+    for (const d of daCaricare) {
+      const m = /^data:([^;]*);base64,(.*)$/.exec(d._file);
+      if (!m) continue;
+      const res = await this._post(c.url, {
+        token: c.token, azione: 'caricaFile',
+        veicoloId: d.veicoloId, nomeVeicolo: UI.nomeVeicolo(DB.get('veicoli', d.veicoloId)), categoria: d.categoria, cartella: d.cartella || '',
+        nome: d.fileNome || d.titolo || 'Documento', mime: m[1] || d.mime || 'application/octet-stream', base64: m[2],
+        sostituisci: d._vecchioFile || ''
+      });
+      if (!res.ok) throw new Error('Caricamento documento: ' + (res.error || 'errore'));
+      // lo script vecchio risponde "ok" ma non salva il file
+      if (!res.fileId) throw new Error('Per caricare i documenti aggiorna lo script nel foglio Google (Garage Sync v3)');
+      await DB.patch('documenti', d.id, { _file: undefined, _vecchioFile: undefined, fileId: res.fileId, url: res.url, fileNome: res.nome || d.fileNome });
+    }
+    if (daCaricare.length && typeof UI !== 'undefined') UI.refresh();
   },
 
   async collega(url, token) {

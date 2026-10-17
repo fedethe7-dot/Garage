@@ -6,8 +6,8 @@
    ========================================================= */
 
 const DB_NAME = 'garage-db';
-const DB_VERSION = 1;
-const TABLES = ['veicoli', 'rifornimenti', 'manutenzioni', 'spese', 'bolli', 'assicurazioni'];
+const DB_VERSION = 2;
+const TABLES = ['veicoli', 'rifornimenti', 'manutenzioni', 'spese', 'bolli', 'assicurazioni', 'documenti'];
 
 const DB = {
   _db: null,
@@ -86,6 +86,18 @@ const DB = {
     return r;
   },
 
+  /** Aggiorna un record già salvato (es. dopo il caricamento del file su Drive) */
+  async patch(table, id, changes) {
+    const arr = this.data[table];
+    const i = arr.findIndex(x => x.id === id);
+    if (i < 0) return null;
+    const r = { ...arr[i], ...changes, updatedAt: new Date().toISOString(), _dirty: true };
+    Object.keys(r).forEach(k => r[k] === undefined && delete r[k]);
+    await this._put(table, r);
+    arr[i] = r;
+    return r;
+  },
+
   /** Eliminazione "morbida": il record resta marcato come eliminato
       così la sincronizzazione futura saprà di doverlo cancellare anche dal foglio */
   async remove(table, id) {
@@ -150,10 +162,11 @@ const DB = {
       out[t] = []; sent[t] = {};
       for (const r of this.data[t]) {
         if (!(all || r._dirty)) continue;
+        if (r._file && !r.deleted) continue;   // documento il cui file non è ancora su Drive
         if (r.deleted && !r._sync && !all) {   // creato ed eliminato senza mai sincronizzare
           out[t].push({ id: r.id, deleted: true, updatedAt: r.updatedAt });
         } else {
-          const { foto, _dirty, _sync, ...pulito } = r;
+          const { foto, _dirty, _sync, _file, _vecchioFile, ...pulito } = r;
           out[t].push(pulito);
         }
         sent[t][r.id] = r.updatedAt; n++;
