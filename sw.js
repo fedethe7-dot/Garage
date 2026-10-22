@@ -1,5 +1,5 @@
 /* GARAGE — sw.js : fa funzionare l'app anche senza internet */
-const CACHE = 'garage-v2.4.1';
+const CACHE = 'garage-v2.4.2';
 const FILES = ['./', 'index.html', 'style.css', 'db.js', 'calc.js', 'charts.js', 'sync.js', 'viaggi.js', 'app.js', 'manifest.json', 'icona-garage.svg', 'icona-garage-192.png', 'icona-garage-512.png'];
 
 self.addEventListener('install', e => {
@@ -15,7 +15,8 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   e.respondWith(
-    fetch(e.request)
+    // per i file dell'app salto la cache del browser, così gli aggiornamenti arrivano subito
+    (e.request.url.startsWith(self.location.origin) ? fetch(e.request, { cache: 'no-cache' }) : fetch(e.request))
       .then(res => {
         if (res.ok && (e.request.url.startsWith(self.location.origin) || e.request.url.includes('fonts.g'))) {
           const copy = res.clone();

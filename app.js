@@ -3,7 +3,7 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.4.2';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -171,7 +171,10 @@ const UI = {
     Sync.init();
 
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
+      // quando arriva una versione nuova, ricarico una volta sola per mostrarla subito
+      let ricaricato = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (ricaricato) return; ricaricato = true; location.reload(); });
     }
   },
 
