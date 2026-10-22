@@ -124,6 +124,15 @@ const Calc = {
     return out.sort((a, b) => a.data < b.data ? -1 : a.data > b.data ? 1 : a.km - b.km);
   },
 
+  /** Km di partenza: i km iniziali del mezzo, oppure la lettura più vecchia se ci sono dati precedenti (es. importati) */
+  kmBase(v) {
+    const lett = this.letture(v.id);
+    const ini = num(v.kmIniziali);
+    if (!lett.length) return ini;
+    const min = Math.min(...lett.map(l => l.km));
+    return ini && ini < min ? ini : min;
+  },
+
   kmAttuali(v) {
     let max = num(v.kmIniziali);
     for (const l of this.letture(v.id)) if (l.km > max) max = l.km;
@@ -135,7 +144,7 @@ const Calc = {
     const lett = this.letture(v.id);
     const dentro = lett.filter(l => Periodi.inRange(l.data, r));
     if (!dentro.length) return 0;
-    let base = num(v.kmIniziali);
+    let base = this.kmBase(v);
     if (r.from) {
       for (const l of lett) if (l.data < r.from && l.km > base) base = l.km;
     }
@@ -174,7 +183,10 @@ const Calc = {
         ultimoPieno = num(f.km); accum = 0;
       }
     }
-    return { km, qta, kmL: qta ? km / qta : 0, l100: km ? qta / km * 100 : 0, tratti };
+    // km tipici con un pieno: la mediana dei tratti, così un pieno dimenticato non sballa il dato
+    const kmTr = tratti.map(t => t.km).sort((a, b) => a - b);
+    const kmPieno = kmTr.length ? kmTr[Math.floor(kmTr.length / 2)] : 0;
+    return { km, qta, kmL: qta ? km / qta : 0, l100: km ? qta / km * 100 : 0, tratti, kmPieno };
   },
 
   carburantiVeicolo(v) {

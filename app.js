@@ -3,7 +3,7 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '2.4.3';
+const APP_VERSION = '2.4.4';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -332,9 +332,10 @@ const UI = {
     const man = DB.list('manutenzioni').filter(x => x.veicoloId === v.id).sort((a, b) => b.data.localeCompare(a.data))[0];
     const scad = Calc.scadenze(v.id)[0];
     const lett = Calc.letture(v.id);
-    const base = num(v.kmIniziali) || (lett[0] ? lett[0].km : kmNow);
+    const base = lett.length || num(v.kmIniziali) ? Calc.kmBase(v) : kmNow;
     const kmPercorsi = Math.max(0, kmNow - base);
-    return { s, kmNow, princ, rif, man, scad, kmPercorsi, costoKm: kmPercorsi && s.costoTot ? s.costoTot / kmPercorsi : 0 };
+    return { s, kmNow, princ, rif, man, scad, kmPercorsi, costoKm: kmPercorsi && s.costoTot ? s.costoTot / kmPercorsi : 0,
+      costoCarbKm: kmPercorsi && s.costoCarb ? s.costoCarb / kmPercorsi : 0 };
   },
 
   testoConsumo(r) {
@@ -724,6 +725,8 @@ const UI = {
             ${this.stat('Prezzo medio', F.num(pc.prezzoMedio, 3) + ' €/' + un)}
             ${this.stat('Spesa', F.eur(pc.costo))}
             ${this.stat('Totale ' + (un === 'L' ? 'litri' : un), F.num(pc.qta, 1))}
+            ${x.kmPieno ? this.stat('Km con un pieno', '~' + F.num(x.kmPieno) + ' km') : ''}
+            ${pc.n ? this.stat('Spesa media a pieno', F.eur(pc.costo / pc.n)) : ''}
           </div>
           ${x.secondario ? `<p class="muted" style="margin:12px 2px 0">Su un'auto ${esc(v.alimentazione)} la ${esc(c.toLowerCase())} è di supporto: il consumo non si calcola (spesa e litri sì).</p>`
             : !x.qta ? `<p class="muted" style="margin:12px 2px 0">💡 Il consumo appare dopo il secondo pieno.</p>` : ''}
@@ -743,6 +746,8 @@ const UI = {
       <div class="grid grid-2 grid-4-lg">
         ${this.stat(u === 'ore' ? '⏱️ Ore motore' : '🛣️ Km attuali', F.num(r.kmNow))}
         ${this.stat(u === 'ore' ? '⏱️ Ore registrate' : '🧭 Km percorsi', F.num(r.kmPercorsi))}
+        ${this.stat('⛽ Speso in carburante', F.eur(s.costoCarb))}
+        ${this.stat('⛽ Carburante/' + (u === 'ore' ? 'ora' : 'km'), r.costoCarbKm ? F.eur(r.costoCarbKm, 3) : '—')}
         ${this.stat('💶 Speso in tutto', F.eur(s.costoTot))}
         ${this.stat('📏 Costo/' + (u === 'ore' ? 'ora' : 'km'), r.costoKm ? F.eur(r.costoKm, 3) : '—')}
       </div>
