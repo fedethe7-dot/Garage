@@ -267,10 +267,9 @@ const Viaggi = {
       dragging: !fermo, touchZoom: !fermo, doubleClickZoom: !fermo, boxZoom: false, keyboard: !fermo
     });
     this._mappe.push(map);
-    // mappa pulita (CARTO): scura in tema scuro, chiara in tema chiaro, così il tracciato si vede bene
-    L.tileLayer(`https://{s}.basemaps.cartocdn.com/${scuro ? 'dark_all' : 'rastertiles/voyager'}/{z}/{x}/{y}{r}.png`, {
-      maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap · © CARTO'
-    }).addTo(map);
+    // mappa OpenStreetMap; in tema scuro è solo un po' attenuata, così strade e tracciato restano leggibili
+    if (scuro) el.classList.add('map-dim');
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
     const gruppo = L.featureGroup().addTo(map);
     conTraccia.forEach((v, i) => {
       const pts = this.decode(v.tracciato);
