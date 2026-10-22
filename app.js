@@ -1570,21 +1570,28 @@ const UI = {
         [{ k: 'data', label: 'Data', type: 'date', req: true }, { k: 'km', label: 'Km', type: 'int', kmHint: true }],
         [{ k: 'costo', label: 'Costo €', type: 'dec', big: true }, { k: 'officina', label: 'Officina', placeholder: 'es. da Mario' }],
         { k: 'descrizione', label: 'Descrizione', placeholder: 'es. olio 10W40 + filtro' },
-        [{ k: 'prossimaData', label: '🗓️ Prossima volta (data)', type: 'date' }, { k: 'prossimiKm', label: '🧭 Prossima volta (km)', type: 'int' }],
+        { k: 'prossimaData', label: '🗓️ Prossima revisione', type: 'date' },
         { k: '_allegati', type: 'allegati', label: '📎 Ricevute e documenti' },
         { more: [{ k: 'note', label: 'Note', type: 'textarea' }] }
       ],
       mount(root) {
         const q = n => root.querySelector(`[name=${n}]`);
-        q('tipo').addEventListener('change', () => {
-          if (q('tipo').value === 'Revisione' && !q('prossimaData').value && q('data').value) {
+        // la data della prossima volta serve solo per la revisione (l'unica scadenza tra le manutenzioni)
+        const boxProssima = q('prossimaData').closest('.field');
+        const aggiorna = () => {
+          const rev = q('tipo').value === 'Revisione';
+          boxProssima.style.display = rev ? '' : 'none';
+          if (rev && !q('prossimaData').value && q('data').value) {
             const d = D.parse(q('data').value); d.setFullYear(d.getFullYear() + 2); q('prossimaData').value = D.iso(d);
           }
-        });
+        };
+        q('tipo').addEventListener('change', aggiorna);
+        aggiorna();
         q('veicoloId').addEventListener('change', () => UI.updateKmHint(root));
       },
       valida(o) {
-        if (!o.costo && !o.descrizione && !o.prossimaData && !o.prossimiKm && !o.km) {
+        if (o.tipo !== 'Revisione') { o.prossimaData = ''; o.prossimiKm = ''; }
+        if (!o.costo && !o.descrizione && !o.prossimaData && !o.km) {
           UI.toast('Aggiungi almeno il costo, i km o una descrizione'); return false;
         }
         return UI.controllaKm(o);

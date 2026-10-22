@@ -313,7 +313,7 @@ const Calc = {
     return out;
   },
 
-  /** Scadenze: manutenzioni programmate, bollo, assicurazione, revisione */
+  /** Scadenze: solo revisione, bollo e assicurazione */
   scadenze(vid) {
     const out = [];
     const oggi = D.today();
@@ -321,16 +321,10 @@ const Calc = {
     for (const v of veicoli) {
       const kmNow = this.kmAttuali(v);
       const u = this.unita(v);
-      // per ogni tipo di manutenzione vale solo l'intervento più recente
-      const ultimi = {};
-      for (const m of DB.list('manutenzioni').filter(x => x.veicoloId === v.id)) {
-        const k = m.tipo || 'Altro';
-        if (!ultimi[k] || m.data > ultimi[k].data) ultimi[k] = m;
-      }
-      for (const m of Object.values(ultimi)) {
-        if (!m.prossimaData && !num(m.prossimiKm)) continue;
-        out.push(this._scad(v, m.tipo || 'Manutenzione', m.prossimaData, num(m.prossimiKm), kmNow, u, oggi, m.tipo === 'Revisione' ? 'revisione' : 'manutenzione'));
-      }
+      // revisione: vale solo l'ultima registrata con la data della prossima
+      const rev = DB.list('manutenzioni').filter(x => x.veicoloId === v.id && x.tipo === 'Revisione' && x.prossimaData)
+        .sort((a, b) => a.data < b.data ? 1 : -1)[0];
+      if (rev) out.push(this._scad(v, 'Revisione', rev.prossimaData, 0, kmNow, u, oggi, 'revisione'));
       const last = (t, f) => DB.list(t).filter(x => x.veicoloId === v.id && x[f]).sort((a, b) => a[f] < b[f] ? 1 : -1)[0];
       const b = last('bolli', 'scadenza');
       if (b) out.push(this._scad(v, 'Bollo', b.scadenza, 0, kmNow, u, oggi, 'bollo'));
@@ -339,7 +333,8 @@ const Calc = {
       // documenti con scadenza (es. carta di circolazione, revisione): conta solo il più recente per categoria
       const docScad = {};
       for (const d of DB.list('documenti').filter(x => x.veicoloId === v.id && x.scadenza && !x.rifId)) {
-        if ((d.categoria === 'Bollo' && b) || (d.categoria === 'Assicurazione' && a)) continue;
+        if (!['Revisione', 'Bollo', 'Assicurazione'].includes(d.categoria)) continue;
+        if ((d.categoria === 'Bollo' && b) || (d.categoria === 'Assicurazione' && a) || (d.categoria === 'Revisione' && rev)) continue;
         const k = d.categoria || 'Altro';
         if (!docScad[k] || d.scadenza > docScad[k].scadenza) docScad[k] = d;
       }
