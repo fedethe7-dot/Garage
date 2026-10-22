@@ -3,7 +3,7 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '2.4.5';
+const APP_VERSION = '2.4.6';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1192,10 +1192,13 @@ const UI = {
           </div>
         </div>
         ${conTraccia ? `<div class="section-title"><h3>Mappa dei giri</h3><span class="muted">${conTraccia} ${conTraccia === 1 ? 'tracciato' : 'tracciati'}</span></div>
-          <div class="map-card"><div class="map" id="mappaTutti"></div></div>` : ''}
+          <div class="map-card map-wrap"><div class="map" id="mappaTutti"></div><button type="button" class="map-zoom" id="mappaTuttiFull">⛶ Schermo intero</button></div>` : ''}
         <div class="btn-row" style="margin:14px 0 4px"><button class="btn" data-act="new" data-table="viaggi" data-vid="${vid || ''}">${ICON.plus} Nuovo viaggio</button><button class="btn secondary" data-act="via-import" data-v="${vid || ''}">📥 Importa più GPX</button></div>
         ${this.listaViaggi(lista, !vid)}` : this.vuotoViaggi()}`;
-    if (conTraccia) Viaggi.mappa($('#mappaTutti'), lista, false);
+    if (conTraccia) {
+      Viaggi.mappa($('#mappaTutti'), lista, false);
+      $('#mappaTuttiFull').onclick = () => Viaggi.schermoIntero(lista, false, 'Mappa dei giri');
+    }
   },
 
   vViaggio(id) {
@@ -1224,7 +1227,7 @@ const UI = {
         ${this.stat('⛰️ Dislivello', num(x.dislivello) ? F.num(num(x.dislivello)) + ' m' : '—')}
         ${this.stat('🏁 Media', media ? F.num(media, 0) + ' km/h' : '—')}
       </div>
-      ${x.tracciato ? `<div class="map-card" style="margin-top:12px"><div class="map tall" id="mappaViaggio"></div></div>` : ''}
+      ${x.tracciato ? `<div class="map-card map-wrap" style="margin-top:12px"><div class="map tall" id="mappaViaggio"></div><button type="button" class="map-zoom" id="mappaViaggioFull">⛶ Schermo intero</button></div>` : ''}
       ${tappe.length ? `<div class="section-title"><h3>Tappe</h3>${maps ? `<a href="${maps}" target="_blank" rel="noopener">Apri in Maps</a>` : ''}</div>
         <div class="card"><ol class="tappe">${tappe.map((t, i) => `<li class="${i === 0 ? 'start' : i === tappe.length - 1 ? 'end' : ''}">${esc(t)}</li>`).join('')}</ol></div>` : ''}
       ${x.note ? `<div class="card" style="margin-top:12px"><div class="muted">📝 Note</div>${esc(x.note).replace(/\n/g, '<br>')}</div>` : ''}
@@ -1233,7 +1236,10 @@ const UI = {
         <button class="btn secondary" data-edit="viaggi:${x.id}">${ICON.edit} Modifica</button>
       </div>
       ${gpx ? `<p class="muted" style="margin:10px 6px">${Docs.statoChip(gpx) || '☁️ File GPX salvato su Google Drive'}</p>` : ''}`;
-    if (x.tracciato) Viaggi.mappa($('#mappaViaggio'), [x], true);
+    if (x.tracciato) {
+      Viaggi.mappa($('#mappaViaggio'), [x], true);
+      $('#mappaViaggioFull').onclick = () => Viaggi.schermoIntero([x], true, x.titolo || 'Viaggio');
+    }
   },
 
   /* =========================================================

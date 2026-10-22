@@ -228,6 +228,30 @@ const Viaggi = {
   },
   pulisci() { this._mappe.forEach(m => { try { m.remove(); } catch (e) {} }); this._mappe = []; },
 
+  /** Apre la mappa a tutto schermo; si chiude con la X o col tasto indietro del telefono */
+  schermoIntero(viaggi, singolo, titolo) {
+    if (document.querySelector('.map-full')) return;
+    const box = document.createElement('div');
+    box.className = 'map-full';
+    box.innerHTML = `<div class="map-full-bar"><b>${esc(titolo || 'Mappa')}</b><button type="button" class="icon-btn" aria-label="Chiudi">✕</button></div><div class="map-full-map"></div>`;
+    document.body.appendChild(box);
+    document.body.style.overflow = 'hidden';
+    const prima = this._mappe.length;
+    const chiudi = () => {
+      if (!box.isConnected) return;
+      window.removeEventListener('popstate', chiudi);
+      this._mappe.splice(prima).forEach(m => { try { m.remove(); } catch (e) {} });
+      box.remove();
+      if (!document.querySelector('.sheet:not([hidden])')) document.body.style.overflow = '';
+    };
+    box.querySelector('button').onclick = () => { if (history.state && history.state.mappaFull) history.back(); else chiudi(); };
+    history.pushState({ mappaFull: true }, '', location.href);
+    window.addEventListener('popstate', chiudi);
+    this.mappa(box.querySelector('.map-full-map'), viaggi, singolo).then(() => {
+      const m = this._mappe[prima]; if (m) { m.scrollWheelZoom.enable(); setTimeout(() => m.invalidateSize(), 300); }
+    });
+  },
+
   /** Disegna uno o più viaggi nel contenitore indicato */
   async mappa(el, viaggi, singolo) {
     if (!el) return;

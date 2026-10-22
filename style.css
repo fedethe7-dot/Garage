@@ -476,3 +476,14 @@ ol.tappe li::before { content: counter(t); position: absolute; left: 0; top: 7px
 ol.tappe li:not(:last-child)::after { content: ''; position: absolute; left: 11px; top: 30px; bottom: -8px; width: 2px; background: var(--border); }
 ol.tappe li.start::before { background: #22c55e; color: #fff; }
 ol.tappe li.end::before { background: #ef4444; color: #fff; }
+
+/* Mappa a tutto schermo */
+.map-wrap { position: relative; }
+.map-zoom { position: absolute; right: 10px; bottom: 10px; z-index: 500; border: 0; border-radius: 999px; padding: 8px 14px;
+  background: var(--surface); color: var(--text); font: inherit; font-weight: 800; font-size: 13px; box-shadow: var(--shadow); cursor: pointer; }
+.map-full { position: fixed; inset: 0; z-index: 70; background: var(--bg, #000); display: flex; flex-direction: column; }
+.map-full-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 10px) 16px 10px; background: var(--surface); color: var(--text); }
+.map-full-bar b { font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-full-map { flex: 1; min-height: 0; }
+.map-full-map .map-empty { height: 100%; }
