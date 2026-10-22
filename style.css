@@ -333,7 +333,7 @@ details.more input, details.more select, details.more textarea { background: var
 .bottomnav {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 30;
   width: min(500px, calc(100% - 24px)); height: 68px;
-  display: grid; grid-template-columns: 1fr 1fr 76px 1fr 1fr; align-items: center;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 76px minmax(0, 1fr) minmax(0, 1fr); align-items: center;
   background: color-mix(in srgb, var(--surface) 90%, transparent);
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
   border-radius: 26px; box-shadow: 0 10px 34px rgba(0,0,0,.18); border: 1px solid var(--border);
@@ -373,10 +373,12 @@ details.more input, details.more select, details.more textarea { background: var
 .sheet-foot .btn { flex: 1; }
 .sheet-foot .btn.danger { flex: 0 0 auto; padding: 14px 16px; }
 
-.quick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.quick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.quick button > div { min-width: 0; max-width: 100%; overflow-wrap: break-word; hyphens: auto; }
+@media (max-width: 360px) { .quick { grid-template-columns: minmax(0, 1fr); } }
 .quick button {
-  display: flex; align-items: center; gap: 12px; text-align: left;
-  border: 0; border-radius: 20px; padding: 14px; background: var(--surface-2); cursor: pointer; font-weight: 800;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px; text-align: left;
+  border: 0; border-radius: 20px; padding: 14px; background: var(--surface-2); cursor: pointer; font-weight: 800; min-width: 0;
 }
 .quick button:active { transform: scale(.97); }
 .quick .em { width: 44px; height: 44px; border-radius: 15px; display: grid; place-items: center; font-size: 22px; flex-shrink: 0; }
@@ -435,7 +437,7 @@ details.more input, details.more select, details.more textarea { background: var
 .due-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; margin: 0 4px; }
 .due-dot.ok { background: var(--good); } .due-dot.vicina { background: var(--warn); } .due-dot.scaduta { background: var(--bad); }
 
-.kv { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: var(--border); border-radius: var(--r-md); overflow: hidden; }
+.kv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; background: var(--border); border-radius: var(--r-md); overflow: hidden; }
 .kv div { background: var(--surface); padding: 11px 14px; min-width: 0; }
 .kv span { display: block; font-size: 12.5px; color: var(--text-2); font-weight: 700; }
 .kv b { font-weight: 800; overflow-wrap: anywhere; }
