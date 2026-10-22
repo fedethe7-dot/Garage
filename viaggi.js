@@ -252,34 +252,47 @@ const Viaggi = {
     });
   },
 
-  /** Disegna uno o più viaggi nel contenitore indicato */
-  async mappa(el, viaggi, singolo) {
+  /** Disegna uno o più viaggi nel contenitore indicato.
+      anteprima = mappa ferma (si tocca per aprirla a tutto schermo) */
+  async mappa(el, viaggi, singolo, anteprima) {
     if (!el) return;
     const conTraccia = viaggi.filter(v => v.tracciato);
     if (!conTraccia.length) { el.innerHTML = '<div class="map-empty">🗺️ Nessun tracciato GPX da mostrare</div>'; return; }
     try { await this.carica(); } catch (e) { el.innerHTML = `<div class="map-empty">📡 ${esc(e.message)}</div>`; return; }
     if (!document.body.contains(el)) return;
-    el.classList.toggle('map-dark', UI.isDark());
-    const map = L.map(el, { zoomControl: true, attributionControl: true, scrollWheelZoom: false, tap: true });
+    const scuro = UI.isDark();
+    const fermo = !!anteprima;
+    const map = L.map(el, {
+      zoomControl: !fermo, attributionControl: true, scrollWheelZoom: false, tap: !fermo,
+      dragging: !fermo, touchZoom: !fermo, doubleClickZoom: !fermo, boxZoom: false, keyboard: !fermo
+    });
     this._mappe.push(map);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map);
+    // mappa pulita (CARTO): scura in tema scuro, chiara in tema chiaro, così il tracciato si vede bene
+    L.tileLayer(`https://{s}.basemaps.cartocdn.com/${scuro ? 'dark_all' : 'rastertiles/voyager'}/{z}/{x}/{y}{r}.png`, {
+      maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap · © CARTO'
+    }).addTo(map);
     const gruppo = L.featureGroup().addTo(map);
     conTraccia.forEach((v, i) => {
       const pts = this.decode(v.tracciato);
       if (pts.length < 2) return;
-      const col = singolo ? getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#ff6b4a' : this.colore(i);
-      const linea = L.polyline(pts, { color: col, weight: singolo ? 5 : 4, opacity: .9 }).addTo(gruppo);
+      const col = singolo ? '#ff4d2e' : this.colore(i);
+      const w = singolo ? 5 : 4;
+      // bordo scuro sotto la linea colorata: si legge su qualsiasi sfondo
+      L.polyline(pts, { color: scuro ? '#000' : '#fff', weight: w + 4, opacity: .75, interactive: false }).addTo(gruppo);
+      const linea = L.polyline(pts, { color: col, weight: w, opacity: 1 }).addTo(gruppo);
       if (singolo) {
-        L.circleMarker(pts[0], { radius: 7, color: '#fff', weight: 2, fillColor: '#22c55e', fillOpacity: 1 }).bindTooltip('Partenza').addTo(gruppo);
-        L.circleMarker(pts[pts.length - 1], { radius: 7, color: '#fff', weight: 2, fillColor: '#ef4444', fillOpacity: 1 }).bindTooltip('Arrivo').addTo(gruppo);
+        L.circleMarker(pts[0], { radius: 8, color: '#fff', weight: 3, fillColor: '#22c55e', fillOpacity: 1 }).bindTooltip('Partenza').addTo(gruppo);
+        L.circleMarker(pts[pts.length - 1], { radius: 8, color: '#fff', weight: 3, fillColor: '#ef4444', fillOpacity: 1 }).bindTooltip('Arrivo').addTo(gruppo);
       } else {
         const veic = DB.get('veicoli', v.veicoloId);
         linea.bindPopup(`<b>${esc(v.titolo || 'Viaggio')}</b><br>${D.fmt(v.data)} · ${F.num(num(v.km))} km<br>${esc(UI.nomeVeicolo(veic))}<br><a href="#viaggio/${v.id}">Apri il viaggio ›</a>`);
-        linea.on('mouseover', () => linea.setStyle({ weight: 7 })).on('mouseout', () => linea.setStyle({ weight: 4 }));
       }
     });
-    if (gruppo.getLayers().length) map.fitBounds(gruppo.getBounds(), { padding: [24, 24] });
-    else map.setView([45.4, 11.9], 8);
-    setTimeout(() => map.invalidateSize(), 250);
+    const inquadra = () => {
+      if (gruppo.getLayers().length) map.fitBounds(gruppo.getBounds(), { padding: [28, 28] });
+      else map.setView([45.4, 11.9], 8);
+    };
+    inquadra();
+    setTimeout(() => { map.invalidateSize(); inquadra(); }, 300);
   }
 };

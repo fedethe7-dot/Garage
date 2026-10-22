@@ -487,3 +487,4 @@ ol.tappe li.end::before { background: #ef4444; color: #fff; }
 .map-full-bar b { font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .map-full-map { flex: 1; min-height: 0; }
 .map-full-map .map-empty { height: 100%; }
+#mappaViaggio { cursor: zoom-in; }

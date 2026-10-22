@@ -670,7 +670,7 @@ const UI = {
     if (tab === 'panoramica') body = this.vVeicoloPanoramica(v);
     else if (tab === 'viaggi') {
       const lista = Viaggi.lista(v.id), t = Viaggi.totali(lista);
-      body = `<div class="btn-row" style="margin:0 0 12px"><button class="btn secondary" data-act="new" data-table="viaggi" data-vid="${v.id}">${ICON.plus} Nuovo viaggio</button><button class="btn secondary" data-act="via-import" data-v="${v.id}">📥 Importa GPX</button>${lista.length ? `<button class="btn secondary" data-act="via-mappa" data-v="${v.id}">🗺️ Mappa dei giri</button>` : ''}</div>` +
+      body = `<div class="btn-row" style="margin:0 0 12px"><button class="btn secondary" data-act="new" data-table="viaggi" data-vid="${v.id}">${ICON.plus} Nuovo viaggio</button><button class="btn secondary" data-act="via-import" data-v="${v.id}">📥 Importa GPX</button></div>` +
         (lista.length ? `<div class="grid grid-2" style="margin-bottom:12px">${this.stat('🗺️ Viaggi', F.num(t.n))}${this.stat('🛣️ Km in viaggio', F.num(t.km))}</div>` + this.listaViaggi(lista, false) : this.vuotoViaggi());
     }
     else if (tab === 'archivio') body = `<div class="btn-row" style="margin:0 0 4px"><button class="btn secondary" data-act="new" data-table="documenti" data-vid="${v.id}">${ICON.plus} Aggiungi documento</button></div>` + this.listaDocumenti(v.id);
@@ -1171,7 +1171,6 @@ const UI = {
     if (st.viaAnno !== 'tutti' && !anni.includes(st.viaAnno)) st.viaAnno = 'tutti';
     const lista = st.viaAnno === 'tutti' ? delMezzo : delMezzo.filter(x => (x.data || '').startsWith(st.viaAnno));
     const t = Viaggi.totali(lista);
-    const conTraccia = lista.filter(x => x.tracciato).length;
     $('#view').innerHTML = `
       ${veicoli.length > 1 ? `<div class="pills">
         <button class="${!vid ? 'on' : ''}" data-act="vveicolo" data-v="tutti">🚦 Tutti i mezzi</button>
@@ -1191,14 +1190,8 @@ const UI = {
             <div><span>Dislivello</span><b>${t.disl ? F.num(t.disl) + ' m' : '—'}</b></div>
           </div>
         </div>
-        ${conTraccia ? `<div class="section-title"><h3>Mappa dei giri</h3><span class="muted">${conTraccia} ${conTraccia === 1 ? 'tracciato' : 'tracciati'}</span></div>
-          <div class="map-card map-wrap"><div class="map" id="mappaTutti"></div><button type="button" class="map-zoom" id="mappaTuttiFull">⛶ Schermo intero</button></div>` : ''}
         <div class="btn-row" style="margin:14px 0 4px"><button class="btn" data-act="new" data-table="viaggi" data-vid="${vid || ''}">${ICON.plus} Nuovo viaggio</button><button class="btn secondary" data-act="via-import" data-v="${vid || ''}">📥 Importa più GPX</button></div>
         ${this.listaViaggi(lista, !vid)}` : this.vuotoViaggi()}`;
-    if (conTraccia) {
-      Viaggi.mappa($('#mappaTutti'), lista, false);
-      $('#mappaTuttiFull').onclick = () => Viaggi.schermoIntero(lista, false, 'Mappa dei giri');
-    }
   },
 
   vViaggio(id) {
@@ -1237,8 +1230,10 @@ const UI = {
       </div>
       ${gpx ? `<p class="muted" style="margin:10px 6px">${Docs.statoChip(gpx) || '☁️ File GPX salvato su Google Drive'}</p>` : ''}`;
     if (x.tracciato) {
-      Viaggi.mappa($('#mappaViaggio'), [x], true);
-      $('#mappaViaggioFull').onclick = () => Viaggi.schermoIntero([x], true, x.titolo || 'Viaggio');
+      // anteprima ferma: toccandola si apre la mappa a tutto schermo con tutto il giro
+      const apri = () => Viaggi.schermoIntero([x], true, x.titolo || 'Viaggio');
+      Viaggi.mappa($('#mappaViaggio'), [x], true, true).then(() => { $('#mappaViaggio') && ($('#mappaViaggio').onclick = apri); });
+      $('#mappaViaggioFull').onclick = apri;
     }
   },
 
