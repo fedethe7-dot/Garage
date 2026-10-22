@@ -1,6 +1,6 @@
 /* GARAGE — sw.js : fa funzionare l'app anche senza internet */
-const CACHE = 'garage-v2.4.2';
-const FILES = ['./', 'index.html', 'style.css', 'db.js', 'calc.js', 'charts.js', 'sync.js', 'viaggi.js', 'app.js', 'manifest.json', 'icona-garage.svg', 'icona-garage-192.png', 'icona-garage-512.png'];
+const CACHE = 'garage-v2.4.3';
+const FILES = ['./', 'index.html', 'style.css', 'db.js', 'calc.js', 'charts.js', 'sync.js', 'viaggi.js', 'drivvo.js', 'app.js', 'manifest.json', 'icona-garage.svg', 'icona-garage-192.png', 'icona-garage-512.png'];
 
 self.addEventListener('install', e => {
   // salva i file uno per uno: se ne manca uno l'app si installa lo stesso

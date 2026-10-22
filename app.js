@@ -3,7 +3,7 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '2.4.2';
+const APP_VERSION = '2.4.3';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -290,6 +290,7 @@ const UI = {
       case 'via-mappa': this.state.viaVeicolo = d.v; this.state.viaAnno = 'tutti'; this.saveUi(); location.hash = '#viaggi'; break;
       case 'via-gpx': { const v = DB.get('viaggi', d.id); if (v) Viaggi.scaricaGpx(v); break; }
       case 'via-import': this.importaGpx(d.v); break;
+      case 'drivvo': this.importaDrivvo(); break;
     }
   },
 
@@ -1026,6 +1027,70 @@ const UI = {
       <button class="btn secondary" data-act="via-import" data-v="" style="margin-top:10px">📥 Importa più GPX insieme</button></div>`;
   },
 
+  /** Importa l'export CSV di Drivvo in un mezzo: aggiunge rifornimenti, manutenzioni e spese, saltando quelli già presenti */
+  importaDrivvo() {
+    const vs = this.veicoliOrdinati();
+    if (!vs.length) { this.toast('Prima aggiungi un mezzo'); return; }
+    let scelto = DB.get('veicoli', this.state.ultimoVeicolo) ? this.state.ultimoVeicolo : vs[0].id, dati = null;
+    this.openSheet('📥 Importa da Drivvo', `<div class="form">
+      ${vs.length > 1 ? `<div class="field"><span class="lbl">In quale mezzo?</span>
+        <div class="chips scroll" id="drvVeic">${vs.map(v => `<button type="button" data-v="${v.id}" class="${scelto === v.id ? 'on' : ''}">${this.avatar(v, 'sm')}${esc(this.nomeVeicolo(v))}</button>`).join('')}</div></div>` : ''}
+      <p class="muted" style="margin:0 4px">In Drivvo: Esporta dati → CSV, un mezzo alla volta. I dati attuali restano: aggiungo solo quello che manca (stessa data, km e importo = già presente).</p>
+      <button type="button" class="btn block" id="drvScegli">🗂️ Scegli il file CSV</button>
+      <div id="drvAnteprima"></div>
+    </div>`);
+    const body = $('#sheetBody'), ant = body.querySelector('#drvAnteprima');
+    const doppio = (t, o, imp) => DB.list(t).some(x => x.veicoloId === scelto && x.data === o.data && Math.abs(num(x.km) - num(o.km)) < 1 && Math.abs(num(x[imp]) - num(o[imp])) < 0.01);
+    const anteprima = () => {
+      if (!dati) return;
+      const nuovi = {
+        rifornimenti: dati.rifornimenti.filter(o => !doppio('rifornimenti', o, 'totale')),
+        manutenzioni: dati.manutenzioni.filter(o => !doppio('manutenzioni', o, 'costo')),
+        spese: dati.spese.filter(o => !doppio('spese', o, 'importo'))
+      };
+      const v = DB.get('veicoli', scelto);
+      const carbs = [...new Set(nuovi.rifornimenti.map(o => o.carburante))];
+      const mancanti = carbs.filter(c => c !== v.alimentazione && c !== v.carburante2);
+      const anni = dati.rifornimenti.concat(dati.manutenzioni).map(o => o.data).sort();
+      const tot = nuovi.rifornimenti.length + nuovi.manutenzioni.length + nuovi.spese.length;
+      ant.innerHTML = `<div class="card" style="margin-top:6px">
+        <h4>${esc(this.nomeVeicolo(v))}${anni.length ? ` · ${D.fmt(anni[0])} – ${D.fmt(anni[anni.length - 1])}` : ''}</h4>
+        <p>⛽ <b>${nuovi.rifornimenti.length}</b> rifornimenti · 🔧 <b>${nuovi.manutenzioni.length}</b> manutenzioni${dati.spese.length ? ` · 🧾 <b>${nuovi.spese.length}</b> spese` : ''}</p>
+        ${tot < dati.rifornimenti.length + dati.manutenzioni.length + dati.spese.length ? `<p class="muted">${dati.rifornimenti.length + dati.manutenzioni.length + dati.spese.length - tot} già presenti, li salto.</p>` : ''}
+        ${mancanti.length ? `<p class="muted">Aggiungo <b>${esc(mancanti.join(', '))}</b> ai carburanti del mezzo.</p>` : ''}
+        ${dati.avvisi.length ? `<div class="note-box">⚠️ Da controllare dopo l'import:<br>${dati.avvisi.map(esc).join('<br>')}</div>` : ''}
+        <button type="button" class="btn block" id="drvVai" ${tot ? '' : 'disabled'}>${tot ? `Importa ${tot} movimenti` : 'Niente di nuovo da importare'}</button></div>`;
+      const vai = ant.querySelector('#drvVai');
+      vai.onclick = async () => {
+        vai.disabled = true; vai.textContent = 'Importo…';
+        try {
+          if (mancanti.length) {
+            const cambi = {};
+            if (!v.alimentazione) cambi.alimentazione = mancanti.shift();
+            if (!v.carburante2 && mancanti.length) cambi.carburante2 = mancanti.shift();
+            if (Object.keys(cambi).length) await DB.save('veicoli', { ...v, ...cambi });
+          }
+          for (const t of ['rifornimenti', 'manutenzioni', 'spese'])
+            for (const o of nuovi[t]) await DB.save(t, { ...o, id: DB.newId(), veicoloId: scelto });
+          this.closeSheet(); this.toast(`Importati ${tot} movimenti da Drivvo ✓`); this.render();
+        } catch (e) { alert('Import interrotto: ' + e.message); vai.disabled = false; }
+      };
+    };
+    body.querySelectorAll('#drvVeic button').forEach(b => b.onclick = () => {
+      scelto = b.dataset.v; body.querySelectorAll('#drvVeic button').forEach(x => x.classList.toggle('on', x === b)); anteprima();
+    });
+    body.querySelector('#drvScegli').onclick = () => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = '.csv,text/csv,text/plain,application/vnd.ms-excel';
+      inp.onchange = async () => {
+        const f = inp.files[0]; if (!f) return;
+        try { dati = Drivvo.leggi(await f.text()); anteprima(); }
+        catch (e) { ant.innerHTML = `<div class="note-box">⚠️ Non riesco a leggere il file: ${esc(e.message)}</div>`; }
+      };
+      inp.click();
+    };
+  },
+
   /** Importa tanti file GPX in un colpo solo: ogni file diventa un viaggio col suo tracciato (e il GPX va su Drive) */
   importaGpx(vid) {
     const vs = this.veicoliOrdinati();
@@ -1199,6 +1264,7 @@ const UI = {
           <button class="btn" data-act="export">${ICON.download} Scarica</button>
           <button class="btn secondary" data-act="import">${ICON.upload} Ripristina</button>
         </div>
+        <button class="btn secondary block" data-act="drivvo" style="margin-top:10px">📥 Importa da Drivvo (CSV)</button>
       </div>
 
       <div class="section-title"><h3>Informazioni</h3></div>
