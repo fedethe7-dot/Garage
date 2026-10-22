@@ -70,7 +70,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; }
+html, body { margin: 0; overflow-x: clip; }
 body {
   font-family: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   background: var(--bg); color: var(--text);
@@ -255,8 +255,8 @@ b, strong { font-weight: 800; }
 .btn.danger { background: var(--bad-soft); color: var(--bad); }
 .btn.block { width: 100%; }
 .btn svg { width: 19px; height: 19px; }
-.btn-row { display: flex; gap: 10px; margin-top: 16px; }
-.btn-row .btn { flex: 1; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.btn-row .btn { flex: 1 1 140px; }
 
 /* ---------- Pillole (filtri, schede, scelte) ---------- */
 .pills { display: flex; gap: 8px; overflow-x: auto; padding: 2px 16px 6px; margin: 0 -16px; scrollbar-width: none; }
@@ -291,7 +291,9 @@ input, select, textarea {
 input::placeholder, textarea::placeholder { color: var(--text-3); font-weight: 600; }
 textarea { min-height: 76px; resize: vertical; }
 input:focus, select:focus, textarea:focus { border-color: var(--accent); background: var(--surface); }
-input[type=date] { -webkit-appearance: none; appearance: none; }
+input[type=date], input[type=time] { -webkit-appearance: none; appearance: none; display: block; max-width: 100%; }
+input[type=date]::-webkit-datetime-edit, input[type=time]::-webkit-datetime-edit { overflow: hidden; min-width: 0; }
+input[type=date]::-webkit-date-and-time-value, input[type=time]::-webkit-date-and-time-value { text-align: left; min-width: 0; }
 input.big { font-size: 21px; font-weight: 900; text-align: center; padding: 12px 6px; }
 input.calc { border-color: color-mix(in srgb, var(--accent) 40%, transparent); color: var(--accent-ink); }
 input.err, select.err, .chips.err { border-color: var(--bad) !important; box-shadow: 0 0 0 2px var(--bad-soft); border-radius: 15px; }
@@ -353,7 +355,7 @@ details.more input, details.more select, details.more textarea { background: var
 @keyframes fadeIn { from { opacity: 0; } }
 .sheet {
   position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 50;
-  width: min(600px, 100%); max-height: 92vh; display: flex; flex-direction: column;
+  width: min(600px, 100%); max-width: 100vw; max-height: 92vh; display: flex; flex-direction: column; overflow: hidden;
   background: var(--surface); border-radius: 30px 30px 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,.25);
   animation: up .3s cubic-bezier(.2,.9,.3,1);
 }
@@ -366,7 +368,7 @@ details.more input, details.more select, details.more textarea { background: var
 .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 18px 6px; }
 .sheet-head h2 { margin: 0; font-size: 21px; font-weight: 900; }
 .sheet-head .icon-btn { box-shadow: none; background: var(--surface-2); width: 38px; height: 38px; border-radius: 13px; }
-.sheet-body { overflow-y: auto; padding: 8px 18px calc(18px + env(safe-area-inset-bottom)); }
+.sheet-body { overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding: 8px 18px calc(18px + env(safe-area-inset-bottom)); }
 .sheet-foot { position: sticky; bottom: calc(-18px - env(safe-area-inset-bottom)); margin: 4px -18px calc(-18px - env(safe-area-inset-bottom)); padding: 12px 18px calc(16px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--surface) 75%, transparent); display: flex; gap: 10px; }
 .sheet-foot .btn { flex: 1; }
 .sheet-foot .btn.danger { flex: 0 0 auto; padding: 14px 16px; }

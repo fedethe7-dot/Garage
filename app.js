@@ -286,6 +286,7 @@ const UI = {
       case 'vanno': set('viaAnno', d.v); break;
       case 'via-mappa': this.state.viaVeicolo = d.v; this.state.viaAnno = 'tutti'; this.saveUi(); location.hash = '#viaggi'; break;
       case 'via-gpx': { const v = DB.get('viaggi', d.id); if (v) Viaggi.scaricaGpx(v); break; }
+      case 'via-import': this.importaGpx(d.v); break;
     }
   },
 
@@ -664,7 +665,7 @@ const UI = {
     if (tab === 'panoramica') body = this.vVeicoloPanoramica(v);
     else if (tab === 'viaggi') {
       const lista = Viaggi.lista(v.id), t = Viaggi.totali(lista);
-      body = `<div class="btn-row" style="margin:0 0 12px"><button class="btn secondary" data-act="new" data-table="viaggi" data-vid="${v.id}">${ICON.plus} Nuovo viaggio</button>${lista.length ? `<button class="btn secondary" data-act="via-mappa" data-v="${v.id}">🗺️ Mappa dei giri</button>` : ''}</div>` +
+      body = `<div class="btn-row" style="margin:0 0 12px"><button class="btn secondary" data-act="new" data-table="viaggi" data-vid="${v.id}">${ICON.plus} Nuovo viaggio</button><button class="btn secondary" data-act="via-import" data-v="${v.id}">📥 Importa GPX</button>${lista.length ? `<button class="btn secondary" data-act="via-mappa" data-v="${v.id}">🗺️ Mappa dei giri</button>` : ''}</div>` +
         (lista.length ? `<div class="grid grid-2" style="margin-bottom:12px">${this.stat('🗺️ Viaggi', F.num(t.n))}${this.stat('🛣️ Km in viaggio', F.num(t.km))}</div>` + this.listaViaggi(lista, false) : this.vuotoViaggi());
     }
     else if (tab === 'archivio') body = `<div class="btn-row" style="margin:0 0 4px"><button class="btn secondary" data-act="new" data-table="documenti" data-vid="${v.id}">${ICON.plus} Aggiungi documento</button></div>` + this.listaDocumenti(v.id);
@@ -1018,7 +1019,72 @@ const UI = {
   vuotoViaggi() {
     return `<div class="card empty"><div class="e-ic">🗺️</div><h4>Nessun viaggio ancora</h4>
       <p>Segna i giri importanti: tappe, km e, se ce l'hai, il file GPX del tracciato.</p>
-      <button class="btn" data-act="new" data-table="viaggi">${ICON.plus} Nuovo viaggio</button></div>`;
+      <button class="btn" data-act="new" data-table="viaggi">${ICON.plus} Nuovo viaggio</button>
+      <button class="btn secondary" data-act="via-import" data-v="" style="margin-top:10px">📥 Importa più GPX insieme</button></div>`;
+  },
+
+  /** Importa tanti file GPX in un colpo solo: ogni file diventa un viaggio col suo tracciato (e il GPX va su Drive) */
+  importaGpx(vid) {
+    const vs = this.veicoliOrdinati();
+    if (!vs.length) { this.toast('Prima aggiungi un mezzo'); return; }
+    let scelto = (vid && DB.get('veicoli', vid)) ? vid : (DB.get('veicoli', this.state.ultimoVeicolo) ? this.state.ultimoVeicolo : vs[0].id);
+    this.openSheet('📥 Importa più GPX', `<div class="form">
+      ${vs.length > 1 ? `<div class="field"><span class="lbl">Con quale mezzo?</span>
+        <div class="chips scroll" id="impVeic">${vs.map(v => `<button type="button" data-v="${v.id}" class="${scelto === v.id ? 'on' : ''}">${this.avatar(v, 'sm')}${esc(this.nomeVeicolo(v))}</button>`).join('')}</div></div>` : ''}
+      <label class="check-row" style="display:flex;gap:10px;align-items:center;font-weight:700"><input type="checkbox" id="impTappe" checked style="width:22px;min-height:22px;flex:0 0 22px"><span>Trova le tappe in automatico <span class="muted">(circa 6 secondi a giro)</span></span></label>
+      <p class="muted" style="margin:0 4px">Puoi selezionare tutti i file insieme. Nome, data, km, durata e dislivello li prendo dai GPX; i giri già presenti (stessa data e stessi km) li salto.</p>
+      <button type="button" class="btn block" id="impScegli">🗂️ Scegli i file GPX</button>
+      <div class="list" id="impLog" hidden></div>
+    </div>`);
+    const body = $('#sheetBody');
+    body.querySelectorAll('#impVeic button').forEach(b => b.onclick = () => {
+      scelto = b.dataset.v; body.querySelectorAll('#impVeic button').forEach(x => x.classList.toggle('on', x === b));
+    });
+    body.querySelector('#impScegli').onclick = () => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.multiple = true; inp.accept = '.gpx,application/gpx+xml,application/xml,text/xml,application/octet-stream';
+      inp.onchange = () => { if (inp.files.length) this._importaFile([...inp.files], scelto, body.querySelector('#impTappe').checked); };
+      inp.click();
+    };
+  },
+
+  async _importaFile(files, vid, conTappe) {
+    const body = $('#sheetBody'), log = body.querySelector('#impLog'), btn = body.querySelector('#impScegli');
+    btn.disabled = true; log.hidden = false; log.innerHTML = '';
+    const riga = (ic, t, s) => { const d = document.createElement('div'); d.className = 'item'; d.innerHTML = `<div class="ic t-exp">${ic}</div><div class="main"><div class="t">${esc(t)}</div><div class="s">${esc(s)}</div></div>`; log.appendChild(d); d.scrollIntoView({ block: 'nearest' }); return d; };
+    files.sort((a, b) => a.name.localeCompare(b.name));
+    let ok = 0, saltati = 0, errori = 0;
+    for (const [i, f] of files.entries()) {
+      const r = riga('⏳', f.name, `${i + 1} di ${files.length} · leggo il file…`);
+      try {
+        const g = await Viaggi.leggiGpx(f);
+        const data = g.data || D.iso(new Date(f.lastModified || Date.now()));
+        const doppio = DB.list('viaggi').find(v => v.veicoloId === vid && v.data === data && Math.abs(num(v.km) - g.km) < 0.5);
+        if (doppio) { saltati++; r.innerHTML = r.innerHTML.replace('⏳', '⏭️'); r.querySelector('.s').textContent = 'Già presente: «' + (doppio.titolo || 'Viaggio') + '»'; continue; }
+        let tappe = '';
+        if (conTappe) {
+          r.querySelector('.s').textContent = `${i + 1} di ${files.length} · cerco le tappe…`;
+          try { tappe = (await Viaggi.trovaTappe(g.punti)).join(' → '); } catch (e) { /* senza tappe */ }
+        }
+        const titolo = g.nome || f.name.replace(/\.gpx$/i, '').replace(/[_-]+/g, ' ').trim() || 'Giro';
+        const o = { id: DB.newId(), veicoloId: vid, titolo, data, km: g.km, durata: g.durataMin ? Viaggi.fmtDurata(g.durataMin) : '', dislivello: g.dislivello || '', tappe, tracciato: g.enc, note: '' };
+        await DB.save('viaggi', o);
+        await Viaggi.salvaGpx(o, g, false);
+        ok++;
+        r.querySelector('.ic').textContent = '✅';
+        r.querySelector('.t').textContent = titolo;
+        r.querySelector('.s').textContent = `${D.fmt(data)} · ${F.num(g.km, 1)} km${tappe ? ' · ' + tappe : ''}`;
+      } catch (e) {
+        errori++;
+        r.querySelector('.ic').textContent = '⚠️';
+        r.querySelector('.s').textContent = e.message || 'File non leggibile';
+      }
+    }
+    if (ok) this.state.ultimoVeicolo = vid;
+    this.saveUi();
+    btn.disabled = false; btn.textContent = '🗂️ Importa altri file';
+    this.toast(`Importati ${ok} giri` + (saltati ? ` · ${saltati} già presenti` : '') + (errori ? ` · ${errori} con errori` : ''));
+    this._needRender = true;
   },
 
   vViaggi() {
@@ -1054,7 +1120,7 @@ const UI = {
         </div>
         ${conTraccia ? `<div class="section-title"><h3>Mappa dei giri</h3><span class="muted">${conTraccia} ${conTraccia === 1 ? 'tracciato' : 'tracciati'}</span></div>
           <div class="map-card"><div class="map" id="mappaTutti"></div></div>` : ''}
-        <div class="btn-row" style="margin:14px 0 4px"><button class="btn" data-act="new" data-table="viaggi" data-vid="${vid || ''}">${ICON.plus} Nuovo viaggio</button></div>
+        <div class="btn-row" style="margin:14px 0 4px"><button class="btn" data-act="new" data-table="viaggi" data-vid="${vid || ''}">${ICON.plus} Nuovo viaggio</button><button class="btn secondary" data-act="via-import" data-v="${vid || ''}">📥 Importa più GPX</button></div>
         ${this.listaViaggi(lista, !vid)}` : this.vuotoViaggi()}`;
     if (conTraccia) Viaggi.mappa($('#mappaTutti'), lista, false);
   },
