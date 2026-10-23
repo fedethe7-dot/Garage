@@ -291,6 +291,8 @@ const UI = {
       case 'via-gpx': { const v = DB.get('viaggi', d.id); if (v) Viaggi.scaricaGpx(v); break; }
       case 'via-import': this.importaGpx(d.v); break;
       case 'drivvo': this.importaDrivvo(); break;
+      case 'ass-sosp': { const a = DB.get('assicurazioni', d.id); if (a) this.openSospendi(a); break; }
+      case 'ass-riatt': { const a = DB.get('assicurazioni', d.id); if (a) this.openRiattiva(a); break; }
     }
   },
 
@@ -347,6 +349,7 @@ const UI = {
     const parts = [];
     if (sc.data) parts.push(sc.giorni < 0 ? `scaduta da ${-sc.giorni} gg` : sc.giorni === 0 ? 'oggi!' : sc.giorni === 1 ? 'domani' : `tra ${sc.giorni} gg`);
     if (sc.km) parts.push(sc.kmMancanti < 0 ? `superata di ${F.num(-sc.kmMancanti)} ${sc.unita}` : `tra ${F.num(sc.kmMancanti)} ${sc.unita}`);
+    if (!parts.length) return sc.tipo === 'riattivazione' ? 'data da decidere' : '—';
     return parts.join(' · ');
   },
   chipScadenza(sc) {
@@ -354,7 +357,7 @@ const UI = {
     return `<span class="chip ${cls}">${esc(this.testoScadenza(sc))}</span>`;
   },
   emojiScadenza(sc) {
-    return { bollo: '📄', assicurazione: '🛡️', revisione: '✅', documento: '📁' }[sc.tipo] || CONFIG.emojiManutenzione[sc.titolo] || '🔧';
+    return { bollo: '📄', assicurazione: '🛡️', revisione: '✅', documento: '📁', riattivazione: '▶️' }[sc.tipo] || CONFIG.emojiManutenzione[sc.titolo] || '🔧';
   },
 
   oggiLungo() {
@@ -559,7 +562,7 @@ const UI = {
         s = vn + 'pagato ' + D.fmt(r.dataPagamento) + (r.scadenza ? ' · scade ' + D.fmt(r.scadenza) : ''); break;
       case 'assicurazioni':
         t = 'Assicurazione' + (r.compagnia ? ' · ' + esc(r.compagnia) : '');
-        s = vn + D.fmt(r.inizio) + ' → ' + D.fmt(r.scadenza); break;
+        s = vn + D.fmt(r.inizio) + ' → ' + D.fmt(r.scadenza) + (r.sospesaDal ? ' · ⏸️ sospesa' : ''); break;
     }
     const nDoc = Docs.collegati(m.t, r.id).length;
     if (nDoc) s += ` · 📎${nDoc > 1 ? ' ' + nDoc : ''}`;
@@ -679,7 +682,7 @@ const UI = {
       const btns = tab === 'documenti'
         ? `<div class="btn-row" style="margin:0 0 12px"><button class="btn secondary" data-act="new" data-table="bolli" data-vid="${v.id}">📄 Nuovo bollo</button><button class="btn secondary" data-act="new" data-table="assicurazioni" data-vid="${v.id}">🛡️ Nuova assicurazione</button></div>`
         : '';
-      body = btns + this.listaMovimenti(v.id, 0, map[tab], true);
+      body = btns + (tab === 'documenti' ? this.boxSospensione(v) : '') + this.listaMovimenti(v.id, 0, map[tab], true);
     }
 
     $('#view').innerHTML = `
@@ -1298,6 +1301,63 @@ const UI = {
       e.preventDefault();
       this.state.nome = $('#nNome').value.trim(); this.saveUi();
       this.closeSheet(); this.render(); this.toast(this.state.nome ? `Piacere, ${this.state.nome}! 👋` : 'Salvato ✓');
+    };
+  },
+
+  /* ---------- Sospensione assicurazione (es. moto d'inverno) ---------- */
+  assicurazioneAttuale(vid) {
+    return DB.list('assicurazioni').filter(x => x.veicoloId === vid && x.scadenza).sort((a, b) => a.scadenza < b.scadenza ? 1 : -1)[0];
+  },
+  boxSospensione(v) {
+    const a = this.assicurazioneAttuale(v.id);
+    if (!a) return '';
+    if (!a.sospesaDal) return `<div class="btn-row" style="margin:0 0 12px"><button class="btn secondary" data-act="ass-sosp" data-id="${a.id}">⏸️ Sospendi assicurazione</button></div>`;
+    const prev = a.riattivoPrevisto;
+    return `<div class="card" style="margin:0 0 12px">
+      <h4>⏸️ Assicurazione sospesa</h4>
+      <p style="margin:0 0 4px">Dal <b>${D.fmt(a.sospesaDal)}</b> · ${F.num(Math.max(0, D.diffDays(a.sospesaDal, D.today())))} giorni finora</p>
+      <p class="muted" style="margin:0">${prev ? 'Riattivazione prevista il <b>' + D.fmt(prev) + '</b> (te la ricordo)' : 'Nessuna data di riattivazione prevista'}</p>
+      <div class="btn-row" style="margin-top:12px"><button class="btn" data-act="ass-riatt" data-id="${a.id}">▶️ Riattiva</button><button class="btn secondary" data-act="ass-sosp" data-id="${a.id}">📅 Cambia date</button></div>
+    </div>`;
+  },
+  openSospendi(a) {
+    const nuova = !a.sospesaDal;
+    this.openSheet(nuova ? '⏸️ Sospendi assicurazione' : '⏸️ Sospensione', `
+      <form class="form" id="frmSosp">
+        <div class="field"><label for="sDal">Sospesa dal</label><input id="sDal" type="date" value="${esc(a.sospesaDal || D.today())}" required></div>
+        <div class="field"><label for="sRiatt">🔔 Pensi di riattivarla il (facoltativo)</label><input id="sRiatt" type="date" value="${esc(a.riattivoPrevisto || '')}"><div class="hint">Ti arriva un promemoria nelle Scadenze e sul calendario</div></div>
+        <p class="muted" style="margin:0 4px">Quando la riattivi, la scadenza (${D.fmt(a.scadenza)}) si sposta in avanti dei giorni di sospensione.</p>
+        <button class="btn block" type="submit">${nuova ? 'Sospendi' : 'Salva'}</button>
+      </form>`);
+    $('#frmSosp').onsubmit = async e => {
+      e.preventDefault();
+      const dal = $('#sDal').value, riatt = $('#sRiatt').value;
+      if (!dal) return;
+      if (riatt && riatt < dal) { this.toast('La riattivazione deve essere dopo la sospensione'); return; }
+      await DB.patch('assicurazioni', a.id, { sospesaDal: dal, riattivoPrevisto: riatt || '' });
+      if (typeof Sync !== 'undefined') Sync.schedule();
+      this.closeSheet(); this.render(); this.toast(nuova ? 'Assicurazione sospesa ⏸️' : 'Salvato ✓');
+    };
+  },
+  openRiattiva(a) {
+    const prev = d => { const g = Math.max(0, D.diffDays(a.sospesaDal, d || D.today())); return { g, scad: D.addDays(a.scadenza, g) }; };
+    const p0 = prev(D.today());
+    this.openSheet('▶️ Riattiva assicurazione', `
+      <form class="form" id="frmRiatt">
+        <div class="field"><label for="rData">Riattivata il</label><input id="rData" type="date" value="${D.today()}" required></div>
+        <div class="card" style="box-shadow:none;background:var(--surface-2,rgba(127,127,127,.08))"><span id="rInfo">Sospesa per <b>${p0.g}</b> giorni: la nuova scadenza è il <b>${D.fmt(p0.scad)}</b> (prima ${D.fmt(a.scadenza)}).</span></div>
+        <button class="btn block" type="submit">Riattiva</button>
+      </form>`);
+    $('#rData').onchange = () => { const p = prev($('#rData').value); $('#rInfo').innerHTML = `Sospesa per <b>${p.g}</b> giorni: la nuova scadenza è il <b>${D.fmt(p.scad)}</b> (prima ${D.fmt(a.scadenza)}).`; };
+    $('#frmRiatt').onsubmit = async e => {
+      e.preventDefault();
+      const d = $('#rData').value || D.today();
+      if (d < a.sospesaDal) { this.toast('La data deve essere dopo la sospensione'); return; }
+      const p = prev(d);
+      const storia = (a.storiaSospensioni ? a.storiaSospensioni + '; ' : '') + D.fmt(a.sospesaDal) + ' → ' + D.fmt(d) + ' (' + p.g + ' gg)';
+      await DB.patch('assicurazioni', a.id, { scadenza: p.scad, sospesaDal: '', riattivoPrevisto: '', giorniSospesi: (+a.giorniSospesi || 0) + p.g, storiaSospensioni: storia });
+      if (typeof Sync !== 'undefined') Sync.schedule();
+      this.closeSheet(); this.render(); this.toast('Riattivata ✓ nuova scadenza ' + D.fmt(p.scad));
     };
   },
 

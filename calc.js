@@ -329,7 +329,8 @@ const Calc = {
       const b = last('bolli', 'scadenza');
       if (b) out.push(this._scad(v, 'Bollo', b.scadenza, 0, kmNow, u, oggi, 'bollo'));
       const a = last('assicurazioni', 'scadenza');
-      if (a) out.push(this._scad(v, 'Assicurazione' + (a.compagnia ? ' · ' + a.compagnia : ''), a.scadenza, 0, kmNow, u, oggi, 'assicurazione'));
+      if (a && a.sospesaDal) out.push(this._scad(v, 'Riattivare assicurazione (sospesa dal ' + D.fmt(a.sospesaDal) + ')', a.riattivoPrevisto || null, 0, kmNow, u, oggi, 'riattivazione'));
+      else if (a) out.push(this._scad(v, 'Assicurazione' + (a.compagnia ? ' · ' + a.compagnia : ''), a.scadenza, 0, kmNow, u, oggi, 'assicurazione'));
       // documenti con scadenza (es. carta di circolazione, revisione): conta solo il più recente per categoria
       const docScad = {};
       for (const d of DB.list('documenti').filter(x => x.veicoloId === v.id && x.scadenza && !x.rifId)) {
