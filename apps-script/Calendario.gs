@@ -98,7 +98,7 @@ function scadenzeDalFoglio_() {
   // assicurazione (o riattivazione se è sospesa)
   const ass = ultima(leggi_('assicurazioni'), 'scadenza');
   Object.keys(ass).forEach(vid => {
-    const r = ass[vid].r, n = nomi[vid] || 'Mezzo';
+    const r = ass[vid].r, n = nomi[vid] || r.veicolo || 'Mezzo';
     if (data_(r.sospesaDal)) {
       metti('riatt-' + vid, data_(r.riattivoPrevisto), '▶️ Riattivare assicurazione ' + n,
         'Assicurazione sospesa dal ' + fmt_(data_(r.sospesaDal)) + '. Ricordati di riattivarla, poi tocca "Riattiva" in Garage.');
@@ -110,23 +110,34 @@ function scadenzeDalFoglio_() {
 
   // bollo
   const bol = ultima(leggi_('bolli'), 'scadenza');
-  Object.keys(bol).forEach(vid => metti('bollo-' + vid, bol[vid].d, '📄 Scade bollo ' + (nomi[vid] || 'Mezzo'), 'Bollo da pagare.'));
+  Object.keys(bol).forEach(vid => metti('bollo-' + vid, bol[vid].d, '📄 Scade bollo ' + (nomi[vid] || bol[vid].r.veicolo || 'Mezzo'), 'Bollo da pagare.'));
 
   // revisione: l'ultima registrata con la data della prossima
   const rev = ultima(leggi_('manutenzioni').filter(r => String(r.tipo) === 'Revisione'), 'prossimaData');
-  Object.keys(rev).forEach(vid => metti('rev-' + vid, rev[vid].d, '✅ Revisione ' + (nomi[vid] || 'Mezzo'), 'Revisione da fare.'));
+  Object.keys(rev).forEach(vid => metti('rev-' + vid, rev[vid].d, '✅ Revisione ' + (nomi[vid] || rev[vid].r.veicolo || 'Mezzo'), 'Revisione da fare.'));
 
   return out;
 }
 
-/** Legge una scheda come elenco di oggetti {colonna: valore}, saltando le righe eliminate */
+/** Legge una scheda come elenco di oggetti. I titoli in italiano del foglio ("Data scadenza", "ID veicolo"…)
+    vengono tradotti nei nomi che usa lo script; le righe eliminate si saltano. */
+const CAL_ALIAS = {
+  id: ['id'], veicoloId: ['idveicolo', 'veicoloid'], veicolo: ['veicolo'], nome: ['nome'], marca: ['marca'], modello: ['modello'],
+  scadenza: ['scadenza', 'datascadenza'], compagnia: ['compagnia'], tipo: ['tipo'], prossimaData: ['prossimadata'],
+  sospesaDal: ['sospesadal'], riattivoPrevisto: ['riattivoprevisto'], deleted: ['deleted', 'eliminato']
+};
+function chiaveTitolo_(t) {
+  const n = String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  for (const k in CAL_ALIAS) if (CAL_ALIAS[k].indexOf(n) >= 0) return k;
+  return String(t).trim();
+}
 function leggi_(nome) {
   const sh = scheda_(nome);
   if (!sh || sh.getLastRow() < 2) return [];
   const val = sh.getDataRange().getValues();
-  const h = val[0].map(x => String(x).trim());
+  const h = val[0].map(chiaveTitolo_);
   return val.slice(1).map(riga => {
-    const o = {}; h.forEach((k, i) => { if (k) o[k] = riga[i]; }); return o;
+    const o = {}; h.forEach((k, i) => { if (k && o[k] === undefined) o[k] = riga[i]; }); return o;
   }).filter(o => o.id && !(o.deleted === true || String(o.deleted).toLowerCase() === 'true'));
 }
 
@@ -140,8 +151,8 @@ function preparaColonneSospensione_() {
   const sh = scheda_('assicurazioni');
   if (!sh) return;
   const ultimaCol = Math.max(1, sh.getLastColumn());
-  const h = sh.getRange(1, 1, 1, ultimaCol).getValues()[0].map(x => String(x).trim());
-  const servono = ['sospesaDal', 'riattivoPrevisto', 'giorniSospesi', 'storiaSospensioni'].filter(k => h.indexOf(k) < 0);
+  const h = sh.getRange(1, 1, 1, ultimaCol).getValues()[0].map(x => String(x).trim().toLowerCase());
+  const servono = ['sospesaDal', 'riattivoPrevisto', 'giorniSospesi', 'storiaSospensioni'].filter(k => h.indexOf(k.toLowerCase()) < 0);
   if (servono.length) sh.getRange(1, ultimaCol + 1, 1, servono.length).setValues([servono]);
 }
 
@@ -162,3 +173,12 @@ function data_(v) {
 }
 function iso_(d) { return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd'); }
 function fmt_(d) { return d ? Utilities.formatDate(d, Session.getScriptTimeZone(), 'dd/MM/yyyy') : ''; }
+
+/** Prova: crea un evento tra 10 minuti con notifica 5 minuti prima */
+function provaNotifica() {
+  const inizio = new Date(Date.now() + 10 * 60000);
+  const ev = calendario_().createEvent('🔔 Prova notifica Garage', inizio, new Date(inizio.getTime() + 15 * 60000));
+  ev.removeAllReminders();
+  ev.addPopupReminder(5);
+  Logger.log('Evento di prova alle ' + inizio + ': la notifica arriva 5 minuti prima.');
+}
