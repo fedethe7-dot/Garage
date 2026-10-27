@@ -199,7 +199,8 @@ b, strong { font-weight: 800; }
 .vcard { cursor: pointer; transition: transform .12s ease; }
 .vcard:active { transform: scale(.985); }
 .vhead { display: flex; align-items: center; gap: 12px; }
-.vname { font-weight: 900; font-size: 17.5px; }
+.vname { font-weight: 900; font-size: 17.5px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.vchip { margin-top: 7px; }
 .vsub { color: var(--text-2); font-size: 13.5px; font-weight: 600; }
 .vmetrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
 .vmetrics div { background: var(--surface-2); border-radius: 14px; padding: 9px 10px; min-width: 0; }
@@ -211,7 +212,7 @@ b, strong { font-weight: 800; }
 
 /* ---------- Statistiche: tile ---------- */
 .stat { background: var(--surface); border-radius: var(--r-md); padding: 14px; box-shadow: var(--shadow); min-width: 0; }
-.stat .k { font-size: 13px; color: var(--text-2); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat .k { font-size: 13px; line-height: 1.3; color: var(--text-2); font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .stat .v { font-size: 21px; font-weight: 900; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat .d { font-size: 12.5px; margin-top: 2px; font-weight: 800; }
 .d.up { color: var(--bad); } .d.down { color: var(--good); } .d.flat { color: var(--text-3); }

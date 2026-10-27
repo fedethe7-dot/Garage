@@ -157,7 +157,22 @@ const UI = {
     await DB.open();
     await DB.loadAll();
 
-    window.addEventListener('hashchange', () => this.render());
+    window.addEventListener('hashchange', () => { this._sheetHash = location.hash; this.render(); });
+    // Tasto "indietro": prima chiude la finestra aperta; salta le voci rimaste vuote dopo una chiusura con la X
+    this._sheetHash = location.hash;
+    window.addEventListener('popstate', e => {
+      const stato = e.state || {};
+      if (!$('#sheet').hidden) {
+        this.closeSheet(true);
+        this._onDead = !!stato.garageSheetClosed;
+        this._sheetHash = location.hash;
+        return;
+      }
+      const eraVuota = this._onDead;
+      this._onDead = !!stato.garageSheetClosed;
+      if (eraVuota && location.hash === this._sheetHash) { history.back(); return; }
+      this._sheetHash = location.hash;
+    });
     document.addEventListener('click', e => this.onClick(e));
     $('#btnAdd').onclick = () => this.quickAdd();
     $('#btnTheme').onclick = () => this.openThemeSheet();
@@ -459,8 +474,8 @@ const UI = {
           <div style="flex:1;min-width:0">
             <div class="vname">${esc(this.nomeVeicolo(v))}</div>
             <div class="vsub">${esc([v.marca, v.modello].filter(Boolean).join(' '))}${v.targa ? ' · ' + esc(v.targa) : ''}</div>
+            <span class="chip acc vchip">${CONFIG.emojiCarburante[v.alimentazione] || '⛽'} ${esc(v.alimentazione || '')}${v.carburante2 ? ' + ' + esc(v.carburante2) : ''}</span>
           </div>
-          <span class="chip acc">${CONFIG.emojiCarburante[v.alimentazione] || '⛽'} ${esc(v.alimentazione || '')}${v.carburante2 ? ' + ' + esc(v.carburante2) : ''}</span>
         </div>
         <div class="vmetrics">
           <div><span>${u === 'ore' ? 'Ore motore' : 'Km attuali'}</span><b>${F.num(r.kmNow)}</b></div>
@@ -729,7 +744,7 @@ const UI = {
             ${this.stat('Spesa', F.eur(pc.costo))}
             ${this.stat('Totale ' + (un === 'L' ? 'litri' : un), F.num(pc.qta, 1))}
             ${x.kmPieno ? this.stat('Km con un pieno', '~' + F.num(x.kmPieno) + ' km') : ''}
-            ${pc.n ? this.stat('Spesa media a pieno', F.eur(pc.costo / pc.n)) : ''}
+            ${pc.n ? this.stat('Media a pieno', F.eur(pc.costo / pc.n)) : ''}
           </div>
           ${x.secondario ? `<p class="muted" style="margin:12px 2px 0">Su un'auto ${esc(v.alimentazione)} la ${esc(c.toLowerCase())} è di supporto: il consumo non si calcola (spesa e litri sì).</p>`
             : !x.qta ? `<p class="muted" style="margin:12px 2px 0">💡 Il consumo appare dopo il secondo pieno.</p>` : ''}
@@ -749,7 +764,7 @@ const UI = {
       <div class="grid grid-2 grid-4-lg">
         ${this.stat(u === 'ore' ? '⏱️ Ore motore' : '🛣️ Km attuali', F.num(r.kmNow))}
         ${this.stat(u === 'ore' ? '⏱️ Ore registrate' : '🧭 Km percorsi', F.num(r.kmPercorsi))}
-        ${this.stat('⛽ Speso in carburante', F.eur(s.costoCarb))}
+        ${this.stat('⛽ Spesa carburante', F.eur(s.costoCarb))}
         ${this.stat('⛽ Carburante/' + (u === 'ore' ? 'ora' : 'km'), r.costoCarbKm ? F.eur(r.costoCarbKm, 3) : '—')}
         ${this.stat('💶 Speso in tutto', F.eur(s.costoTot))}
         ${this.stat('📏 Costo/' + (u === 'ore' ? 'ora' : 'km'), r.costoKm ? F.eur(r.costoKm, 3) : '—')}
@@ -1403,13 +1418,23 @@ const UI = {
     $('#sheetBody').innerHTML = html;
     const wasHidden = $('#sheet').hidden;
     $('#sheet').hidden = false; $('#sheetBackdrop').hidden = false;
-    if (wasHidden) $('#sheetBody').scrollTop = 0;
+    if (wasHidden) {
+      $('#sheetBody').scrollTop = 0;
+      // una voce nella cronologia: il tasto "indietro" di Android chiude la finestra invece di cambiare pagina
+      history.pushState({ garageSheet: true }, '');
+      this._onDead = false;
+    }
     document.body.style.overflow = 'hidden';
   },
-  closeSheet() {
+  closeSheet(daIndietro) {
     const eraAperto = !$('#sheet').hidden;
     $('#sheet').hidden = true; $('#sheetBackdrop').hidden = true;
     document.body.style.overflow = '';
+    // chiusa con la X o dopo un salvataggio: la voce aggiunta all'apertura diventa "vuota" e il prossimo indietro la salta
+    if (eraAperto && !daIndietro && history.state && history.state.garageSheet) {
+      history.replaceState({ garageSheetClosed: true }, '');
+      this._onDead = true;
+    }
     if (eraAperto && this._needRender) { this._needRender = false; this.render(); }
   },
   refresh() { if ($('#sheet').hidden) this.render(); else this._needRender = true; },

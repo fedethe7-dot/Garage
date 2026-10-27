@@ -79,7 +79,11 @@ const Charts = {
     o.labels.forEach((l, i) => {
       if (i % every !== 0 && i !== n - 1) return;
       if (i === n - 1 && i % every !== 0 && (n - 1) % every < every * 0.6) return;
-      svg += `<text x="${X(i)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="${muted}">${l}</text>`;
+      // l'etichetta non deve uscire dal riquadro (prima l'ultima data veniva tagliata)
+      const x = X(i), half = String(l).length * 3.3;
+      const anchor = x + half > W - 2 ? 'end' : (x - half < 2 ? 'start' : 'middle');
+      const tx = anchor === 'end' ? W - 2 : anchor === 'start' ? 2 : x;
+      svg += `<text x="${tx}" y="${H - 6}" text-anchor="${anchor}" font-size="11" fill="${muted}">${l}</text>`;
     });
 
     if (o.type === 'bar') {
