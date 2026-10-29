@@ -385,11 +385,12 @@ function sceltaAuto(app, daImpostazioni) {
       <p class="muted">Vedrai solo quelle che scegli. Puoi cambiarle quando vuoi.</p>
       <div class="chips">${tutte.map(v => `<button class="chip ${sel.has(v.id) ? 'on' : ''}" data-v="${v.id}">${esc(nomeAuto(v))}</button>`).join('') || '<span class="muted">Nel foglio non ci sono ancora auto.</span>'}</div>
       <button class="btn line" id="nuova">＋ Aggiungi un'auto</button>
-      <button class="btn" id="ok" ${sel.size ? '' : 'disabled'}>Fatto</button>
+      <button class="btn" id="fattoAuto" ${sel.size ? '' : 'disabled'}>Fatto</button>
     </div>`;
     app.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { sel.has(b.dataset.v) ? sel.delete(b.dataset.v) : sel.add(b.dataset.v); disegna(); });
-    $('#nuova').onclick = () => formAuto(id => { sel.add(id); disegna(); });
-    $('#ok').onclick = () => { cfg.miei = [...sel]; if (!sel.has(cfg.auto)) cfg.auto = cfg.miei[0]; salvaCfg(); render(); };
+    // l'auto appena aggiunta diventa subito "mia" e si entra nell'app
+    $('#nuova').onclick = () => formAuto(id => { sel.add(id); cfg.miei = [...sel]; cfg.auto = id; salvaCfg(); render(); });
+    $('#fattoAuto').onclick = () => { cfg.miei = [...sel]; if (!sel.has(cfg.auto)) cfg.auto = cfg.miei[0]; salvaCfg(); render(); };
   };
   disegna();
 }
