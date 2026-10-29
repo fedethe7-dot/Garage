@@ -277,8 +277,13 @@ function testoStato() {
 }
 
 /* ---------- Calcoli ---------- */
+/* Solo le auto; quelle segnate "nascosta" (dal telefono di Federico) non compaiono a nessuno.
+   Il segno sta nelle note del mezzo, così vale per tutti i telefoni e si vede anche in Garage. */
+const SEGNO = '[nascosta in La mia auto]';
+const nascosta = v => String(v.note || '').includes(SEGNO);
+const autoVisibili = () => lista('veicoli').filter(v => (v.tipo || 'Auto') === 'Auto' && !nascosta(v));
 function mieAuto() {
-  const tutte = lista('veicoli');
+  const tutte = autoVisibili();
   const mie = tutte.filter(v => (cfg.miei || []).includes(v.id));
   return mie.length ? mie : [];
 }
@@ -372,7 +377,7 @@ function chiSei(app) {
 }
 
 function sceltaAuto(app, daImpostazioni) {
-  const tutte = lista('veicoli').filter(v => v.tipo !== 'Trattorino / attrezzo');
+  const tutte = autoVisibili();
   const sel = new Set(cfg.miei || []);
   const disegna = () => {
     app.innerHTML = `<div class="hello" style="padding-top:6vh">
@@ -551,15 +556,35 @@ function formAuto(fatto) {
   };
 }
 
+function nascondi() {
+  const auto = lista('veicoli').filter(v => (v.tipo || 'Auto') === 'Auto');
+  apri(`${testa('Nascondi auto')}
+    <p class="hint">Le auto spente qui non compaiono a nessuno in "La mia auto". In Garage restano come sempre.</p>
+    ${auto.map(v => `<label class="switch">${esc(nomeAuto(v))}<input type="checkbox" data-n="${v.id}" ${nascosta(v) ? '' : 'checked'}></label>`).join('')}
+    <button class="btn" id="ok">Salva</button>`);
+  $('#ok').onclick = () => {
+    $('#sheet').querySelectorAll('[data-n]').forEach(c => {
+      const v = prendi('veicoli', c.dataset.n), vuole = !c.checked;
+      if (!v || vuole === nascosta(v)) return;
+      const note = vuole ? (String(v.note || '').trim() + ' ' + SEGNO).trim() : String(v.note || '').replace(SEGNO, '').trim();
+      salva('veicoli', Object.assign({}, v, { note }));
+    });
+    cfg.miei = (cfg.miei || []).filter(id => { const v = prendi('veicoli', id); return v && !nascosta(v); });
+    salvaCfg(); chiudi(); render(); toast('Salvato');
+  };
+}
+
 function impostazioni() {
   apri(`${testa('Impostazioni')}
     <button class="btn line" id="auto">🚗 Cambia le mie auto</button>
+    ${cfg.chi === 'Federico' ? '<button class="btn line" id="nasc">🙈 Nascondi auto agli altri</button>' : ''}
     <button class="btn line" id="chi">🙋 Non sono ${esc(cfg.chi)}</button>
     <button class="btn line" id="inv">💌 Copia il link per un'altra persona</button>
     <button class="btn line" id="agg">🔄 Aggiorna dal foglio</button>
     <p class="hint">I dati stanno nel foglio Google di Garage: Federico li vede anche lì. Il link d'invito apre le auto di famiglia, mandalo solo in famiglia.</p>
     <button class="btn ghost" id="esci">Scollega questo telefono</button>`);
   $('#auto').onclick = () => { chiudi(); sceltaAuto($('#app')); };
+  const nb = $('#nasc'); if (nb) nb.onclick = nascondi;
   $('#chi').onclick = () => { cfg.chi = ''; salvaCfg(); chiudi(); render(); };
   $('#agg').onclick = () => { chiudi(); Sync.vai(true); };
   $('#inv').onclick = async () => {
