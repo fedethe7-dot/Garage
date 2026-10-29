@@ -1,0 +1,17 @@
+{
+  "id": "/Garage/facile/",
+  "name": "La mia auto",
+  "short_name": "La mia auto",
+  "description": "Rifornimenti e manutenzioni dell'auto, in modo semplice.",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF3F1",
+  "theme_color": "#FBF3F1",
+  "lang": "it",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

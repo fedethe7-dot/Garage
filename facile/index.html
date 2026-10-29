@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>La mia auto</title>
+<meta name="description" content="Rifornimenti e manutenzioni dell'auto, in modo semplice.">
+<meta name="theme-color" content="#FBF3F1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#221720" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="La mia auto">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #FBF3F1;          /* carta cipria */
+  --card: #FFFFFF;
+  --soft: #F6DCE3;        /* rosa polvere */
+  --ink: #3B2233;         /* prugna */
+  --sub: #85677A;
+  --rose: #C2577A;        /* lampone */
+  --rose-t: #FFFFFF;
+  --sage: #6E9E8A;        /* salvia: il carburante */
+  --sage-bg: #E3F0EA;
+  --line: #EED7DD;
+  --bad: #C0392B;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #221720; --card: #2F212C; --soft: #43293A; --ink: #F8E9EF; --sub: #C7A9BA;
+    --rose: #EE8FB0; --rose-t: #2A1724; --sage: #9BCBB6; --sage-bg: #24372F; --line: #432D3C; --bad: #FF8A80;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 17px/1.45 "Nunito Sans", system-ui, sans-serif;
+  padding: env(safe-area-inset-top) 0 calc(28px + env(safe-area-inset-bottom));
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--rose); outline-offset: 2px; }
+.wrap { max-width: 520px; margin: 0 auto; padding: 0 18px; }
+.hidden { display: none !important; }
+.muted { color: var(--sub); }
+h1, h2, .num { font-family: Fredoka, "Nunito Sans", sans-serif; font-weight: 600; letter-spacing: -.01em; }
+
+/* Testata */
+.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0 10px; }
+.top h1 { margin: 0; font-size: 1.6rem; line-height: 1.1; }
+.top p { margin: 2px 0 0; color: var(--sub); font-size: .95rem; }
+.round { width: 46px; height: 46px; border-radius: 50%; border: 0; background: var(--card); display: grid; place-items: center; font-size: 1.25rem; box-shadow: 0 1px 0 var(--line); }
+
+/* Auto */
+.cars { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 12px; scrollbar-width: none; }
+.cars::-webkit-scrollbar { display: none; }
+.car { flex: none; border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: .95rem; }
+.car.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+/* Lo scontrino del mese: l'elemento che si ricorda */
+.ticket {
+  position: relative; background: var(--soft); border-radius: 22px 22px 0 0; padding: 20px 22px 26px; margin-top: 4px;
+}
+.ticket::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -12px; height: 12px;
+  background: radial-gradient(circle at 10px -2px, transparent 9px, var(--soft) 10px) 0 0 / 20px 12px repeat-x;
+}
+.ticket .car-name { font-weight: 700; display: flex; justify-content: space-between; gap: 10px; }
+.ticket .car-name span:last-child { color: var(--sub); font-weight: 600; white-space: nowrap; }
+.ticket .big { font-size: 3.4rem; line-height: 1; margin: 18px 0 4px; }
+.ticket .big small { font-size: 1.6rem; margin-right: 4px; }
+.ticket .cap { color: var(--sub); }
+.bars { display: flex; align-items: flex-end; gap: 8px; height: 64px; margin-top: 18px; }
+.bars div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; }
+.bars i { display: block; width: 100%; border-radius: 6px 6px 3px 3px; background: color-mix(in srgb, var(--rose) 45%, transparent); min-height: 3px; }
+.bars div:last-child i { background: var(--rose); }
+.bars span { font-size: .72rem; color: var(--sub); }
+
+.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 26px 0 18px; }
+.facts div { padding: 4px 4px 4px 0; }
+.facts div + div { padding-left: 16px; border-left: 1.5px solid var(--line); }
+.facts .num { font-size: 1.55rem; display: block; line-height: 1.2; }
+.facts .lbl { color: var(--sub); font-size: .9rem; }
+
+/* Azioni */
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.act { border: 0; border-radius: 20px; padding: 16px 10px; min-height: 88px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-weight: 700; font-size: 1.02rem; }
+.act b { font-size: 1.7rem; line-height: 1.2; }
+.act.fuel { background: var(--sage-bg); color: var(--ink); }
+.act.fix { background: var(--rose); color: var(--rose-t); }
+
+/* Elenco */
+h2 { font-size: 1.15rem; margin: 30px 0 8px; }
+.row { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: none; text-align: left; padding: 12px 0; border-bottom: 1.5px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row .ic { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; font-size: 1.25rem; flex: none; }
+.row .ic.f { background: var(--sage-bg); }
+.row .ic.m { background: var(--soft); }
+.row .tx { flex: 1; min-width: 0; }
+.row .t { display: block; font-weight: 700; }
+.row .s { display: block; color: var(--sub); font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .eur { font-family: Fredoka, sans-serif; font-weight: 600; font-size: 1.1rem; }
+.empty { text-align: center; color: var(--sub); padding: 26px 10px; }
+
+/* Pannello */
+.bg { position: fixed; inset: 0; background: rgba(40, 18, 32, .42); display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
+.sheet { background: var(--bg); width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; border-radius: 26px 26px 0 0; padding: 10px 20px calc(24px + env(safe-area-inset-bottom)); animation: su .2s ease-out; }
+@keyframes su { from { transform: translateY(30px); opacity: .6; } }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+.grab { width: 44px; height: 5px; border-radius: 9px; background: var(--line); margin: 0 auto 10px; }
+.sheet-h { display: flex; align-items: center; justify-content: space-between; }
+.sheet-h h2 { margin: 6px 0; font-size: 1.35rem; }
+label.f { display: block; margin: 14px 0 0; font-weight: 700; font-size: .95rem; }
+label.f small { font-weight: 600; color: var(--sub); }
+.in { display: block; width: 100%; margin-top: 6px; border: 1.5px solid var(--line); background: var(--card); border-radius: 14px; padding: 13px 14px; font-size: 1.1rem; min-height: 52px; -webkit-appearance: none; appearance: none; }
+.in:focus { border-color: var(--rose); outline: none; }
+.in.big { font-family: Fredoka, sans-serif; font-size: 1.6rem; font-weight: 600; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.chip { border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 9px 14px; font-weight: 700; font-size: .95rem; }
+.chip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding: 12px 14px; border-radius: 14px; background: var(--card); border: 1.5px solid var(--line); font-weight: 700; }
+.switch input { width: 24px; height: 24px; accent-color: var(--rose); }
+.hint { font-size: .88rem; color: var(--sub); margin-top: 6px; }
+.btn { display: block; width: 100%; border: 0; border-radius: 16px; min-height: 56px; margin-top: 20px; font-weight: 700; font-size: 1.08rem; background: var(--rose); color: var(--rose-t); }
+.btn.ghost { background: transparent; color: var(--bad); margin-top: 8px; }
+.btn.line { background: var(--card); color: var(--ink); border: 1.5px solid var(--line); margin-top: 10px; }
+.btn:disabled { opacity: .5; }
+.err { color: var(--bad); font-weight: 700; margin-top: 10px; min-height: 1.2em; }
+
+/* Benvenuto */
+.hello { padding-top: 12vh; }
+.hello h1 { font-size: 2.3rem; line-height: 1.05; margin: 18px 0 8px; }
+.hello img { width: 84px; height: 84px; border-radius: 22px; }
+
+.toast { position: fixed; left: 50%; top: calc(14px + env(safe-area-inset-top)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 14px; font-weight: 700; z-index: 20; max-width: calc(100% - 32px); text-align: center; }
+.sync { font-size: .8rem; color: var(--sub); text-align: center; margin-top: 26px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div class="bg hidden" id="bg"><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<div class="toast hidden" id="toast" role="status"></div>
+
+<script>
+'use strict';
+/* =========================================================
+   La mia auto — la versione semplice di Garage.
+   Usa lo stesso foglio Google di Garage (stesso script, stesso codice):
+   tutto quello che si scrive qui lo vede anche Federico in Garage.
+   Tabelle usate: veicoli, rifornimenti, manutenzioni.
+   ========================================================= */
+const TAB = ['veicoli', 'rifornimenti', 'manutenzioni'];
+const TIPI = [['Tagliando', '🧰'], ['Cambio olio', '🛢️'], ['Gomme', '🛞'], ['Freni', '🛑'], ['Batteria', '🔋'], ['Revisione', '✅'], ['Altro', '🔧']];
+const EMO_T = Object.fromEntries(TIPI);
+const FAMIGLIA = ['Mamma', 'Beatrice'];
+const MESI = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
+const MESI_L = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
+
+/* ---------- Memoria ---------- */
+const L = {
+  get(k, d) { try { const v = localStorage.getItem('lamiaauto.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('lamiaauto.' + k, JSON.stringify(v)); } catch (e) { /* niente */ } }
+};
+let cfg = L.get('cfg', {});              // { url, token, chi, miei:[id], auto:id, lastSync }
+let dati = L.get('dati', { veicoli: [], rifornimenti: [], manutenzioni: [] });
+const salvaCfg = () => L.set('cfg', cfg);
+const salvaDati = () => L.set('dati', dati);
+
+/* ---------- Utilità ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const num = v => { if (typeof v === 'number') return isFinite(v) ? v : 0; let s = String(v ?? '').trim().replace(/\s|€/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = parseFloat(s); return isFinite(n) ? n : 0; };
+const eur = (n, d = 2) => (n || 0).toLocaleString('it-IT', { style: 'currency', currency: 'EUR', minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtN = (n, d = 0) => (n || 0).toLocaleString('it-IT', { minimumFractionDigits: d, maximumFractionDigits: d });
+const z = n => String(n).padStart(2, '0');
+const oggi = () => { const d = new Date(); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); };
+const dataBreve = s => { if (!s) return ''; const [y, m, d] = s.split('-').map(Number); return d + ' ' + MESI[m - 1] + (y !== new Date().getFullYear() ? ' ' + y : ''); };
+const nuovoId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'id-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+const lista = t => (dati[t] || []).filter(r => !r.deleted);
+const prendi = (t, id) => lista(t).find(r => r.id === id);
+const nomeAuto = v => v ? (v.nome || [v.marca, v.modello].filter(Boolean).join(' ') || 'Auto') : '';
+let tT;
+function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.remove('hidden'); clearTimeout(tT); tT = setTimeout(() => t.classList.add('hidden'), 2600); }
+
+/* ---------- Dati e salvataggio ---------- */
+function salva(t, rec) {
+  const r = Object.assign({}, rec);
+  if (!r.id) r.id = nuovoId();
+  r.updatedAt = new Date().toISOString(); r.deleted = false; r._dirty = true;
+  const a = dati[t], i = a.findIndex(x => x.id === r.id);
+  if (i >= 0) a[i] = Object.assign({}, a[i], r); else a.push(r);
+  salvaDati(); Sync.presto();
+  return r;
+}
+function elimina(t, id) {
+  const a = dati[t], i = a.findIndex(x => x.id === id);
+  if (i < 0) return;
+  a[i] = Object.assign({}, a[i], { deleted: true, _dirty: true, updatedAt: new Date().toISOString() });
+  salvaDati(); Sync.presto();
+}
+
+/* ---------- Sincronizzazione con il foglio di Garage (stesso protocollo) ---------- */
+const Sync = {
+  busy: false, ancora: false, t: null, stato: '',
+  presto(ms = 900) { if (!cfg.url) return; clearTimeout(this.t); this.t = setTimeout(() => this.vai(), ms); },
+  async post(body) {
+    const r = await fetch(cfg.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
+    const txt = await r.text();
+    try { return JSON.parse(txt); } catch (e) { throw new Error('Il foglio non risponde come dovrebbe'); }
+  },
+  async vai(manuale) {
+    if (!cfg.url) return;
+    if (this.busy) { this.ancora = true; return; }
+    this.busy = true; this.stato = 'sync'; mostraStato();
+    try {
+      const changes = {}, sent = {};
+      TAB.forEach(t => {
+        changes[t] = []; sent[t] = {};
+        dati[t].forEach(r => {
+          if (!r._dirty) return;
+          const { _dirty, _sync, foto, ...pulito } = r;
+          changes[t].push(r.deleted && !r._sync ? { id: r.id, deleted: true, updatedAt: r.updatedAt } : pulito);
+          sent[t][r.id] = r.updatedAt;
+        });
+      });
+      const res = await this.post({ token: cfg.token, changes });
+      if (!res.ok) throw new Error(res.error === 'Codice non valido' ? 'Il link non è più valido: chiedine uno nuovo a Federico' : (res.error || 'Errore dal foglio'));
+      this.unisci(res.data || {}, sent);
+      cfg.lastSync = new Date().toISOString(); salvaCfg();
+      this.stato = 'ok';
+      if (manuale) toast('Tutto aggiornato');
+    } catch (e) {
+      this.stato = 'offline';
+      if (manuale) toast(e.message && !/fetch/i.test(e.message) ? e.message : 'Nessuna connessione: salvo appena torna');
+    } finally {
+      this.busy = false; render();
+      if (this.ancora) { this.ancora = false; this.presto(300); }
+    }
+  },
+  /* come in Garage: vince il foglio, tranne le modifiche fatte qui nel frattempo */
+  unisci(server, sent) {
+    TAB.forEach(t => {
+      if (!Array.isArray(server[t])) return;
+      const sMap = {}; server[t].forEach(r => { sMap[r.id] = r; });
+      const keep = [];
+      dati[t].forEach(loc => {
+        const inviato = sent[t] && sent[t][loc.id] === loc.updatedAt;
+        const s = sMap[loc.id]; delete sMap[loc.id];
+        if (loc._dirty && !inviato) { keep.push(loc); return; }
+        if (loc.deleted) return;
+        if (!s) { if (loc._sync || inviato) return; keep.push(loc); return; }
+        keep.push(Object.assign({}, s, { deleted: false, _sync: true, _dirty: false }));
+      });
+      Object.keys(sMap).forEach(id => keep.push(Object.assign({}, sMap[id], { deleted: false, _sync: true, _dirty: false })));
+      dati[t] = keep;
+    });
+    salvaDati();
+  }
+};
+function mostraStato() { const s = $('#stato'); if (s) s.textContent = testoStato(); }
+function testoStato() {
+  const daInviare = TAB.reduce((n, t) => n + dati[t].filter(r => r._dirty).length, 0);
+  if (Sync.stato === 'sync') return 'Salvo nel foglio…';
+  if (daInviare) return daInviare + (daInviare === 1 ? ' cosa da salvare' : ' cose da salvare') + ' nel foglio · tocca per riprovare';
+  if (cfg.lastSync) return 'Salvato nel foglio di Garage';
+  return '';
+}
+
+/* ---------- Calcoli ---------- */
+function mieAuto() {
+  const tutte = lista('veicoli');
+  const mie = tutte.filter(v => (cfg.miei || []).includes(v.id));
+  return mie.length ? mie : [];
+}
+function autoAttiva() { const m = mieAuto(); return m.find(v => v.id === cfg.auto) || m[0] || null; }
+function carburanti(v) {
+  const out = [];
+  const add = c => { if (c && !out.includes(c)) out.push(c); };
+  add({ Ibrido: 'Benzina', Elettrico: 'Elettrico' }[v.alimentazione] || (['Benzina', 'Diesel', 'GPL', 'Metano'].includes(v.alimentazione) ? v.alimentazione : 'Benzina'));
+  add(v.carburante2);
+  return out;
+}
+function kmAttuali(v) {
+  let max = num(v.kmIniziali);
+  ['rifornimenti', 'manutenzioni'].forEach(t => lista(t).forEach(r => { if (r.veicoloId === v.id && num(r.km) > max) max = num(r.km); }));
+  return max;
+}
+function movimenti(v) {
+  const r = lista('rifornimenti').filter(x => x.veicoloId === v.id).map(x => ({ t: 'rifornimenti', r: x, eur: num(x.totale) }));
+  const m = lista('manutenzioni').filter(x => x.veicoloId === v.id).map(x => ({ t: 'manutenzioni', r: x, eur: num(x.costo) }));
+  return r.concat(m).sort((a, b) => String(b.r.data).localeCompare(String(a.r.data)) || num(b.r.km) - num(a.r.km));
+}
+/* consumo "da pieno a pieno" sul carburante principale (come Garage) */
+function consumo(v) {
+  const c = carburanti(v)[0];
+  const rif = lista('rifornimenti').filter(x => x.veicoloId === v.id && x.carburante === c).sort((a, b) => num(a.km) - num(b.km));
+  let km = 0, litri = 0, ultimo = null, acc = 0;
+  rif.forEach(f => {
+    acc += num(f.litri);
+    if (f.pieno !== false) {
+      if (ultimo !== null && num(f.km) > ultimo) { km += num(f.km) - ultimo; litri += acc; }
+      ultimo = num(f.km); acc = 0;
+    }
+  });
+  return { km, litri, kmL: litri ? km / litri : 0, l100: km ? litri / km * 100 : 0, carburante: c };
+}
+
+/* ---------- Schermate ---------- */
+function render() {
+  const app = $('#app');
+  if (!cfg.url) return benvenuto(app);
+  if (!cfg.chi) return chiSei(app);
+  if (!mieAuto().length) return sceltaAuto(app);
+  casa(app);
+}
+
+function benvenuto(app, msg) {
+  // Federico: su questo telefono c'è già Garage collegato
+  let g = null; try { g = JSON.parse(localStorage.getItem('garage-sync') || 'null'); } catch (e) { /* niente */ }
+  app.innerHTML = `<div class="hello">
+    <img src="icon-180.png" alt="">
+    <h1>La mia auto</h1>
+    <p class="muted">Rifornimenti e manutenzioni, senza pensieri. Per iniziare incolla il link che ti ha mandato Federico.</p>
+    <label class="f" for="invito">Link d'invito</label>
+    <input class="in" id="invito" type="url" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://fedethe7-dot.github.io/Garage/facile/#invito=…">
+    <div class="err" id="err">${esc(msg || '')}</div>
+    <button class="btn" id="go">Collega</button>
+    ${g && g.url && g.token ? '<button class="btn line" id="dagarage">Usa il collegamento di Garage</button>' : ''}
+  </div>`;
+  $('#go').onclick = () => { const ok = leggiInvito($('#invito').value); if (!ok) $('#err').textContent = 'Questo link non è un invito: copialo di nuovo per intero dal messaggio.'; else primoCollegamento(); };
+  const dg = $('#dagarage');
+  if (dg) dg.onclick = () => { cfg.url = g.url; cfg.token = g.token; salvaCfg(); primoCollegamento(); };
+}
+async function primoCollegamento() {
+  $('#app').innerHTML = '<div class="hello"><img src="icon-180.png" alt=""><h1>Un attimo…</h1><p class="muted">Prendo le auto dal foglio di Garage.</p></div>';
+  await Sync.vai();
+  if (Sync.stato !== 'ok') { const u = cfg.url; cfg = {}; salvaCfg(); return benvenuto($('#app'), u ? 'Il foglio non risponde. Controlla la connessione o chiedi a Federico un link nuovo.' : ''); }
+  render();
+}
+function leggiInvito(testo) {
+  const m = /#invito=([^&\s]+)/.exec(testo || '');
+  if (!m) return false;
+  try {
+    const o = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));
+    if (!o.u || !o.t) return false;
+    cfg.url = o.u; cfg.token = o.t; salvaCfg();
+    return true;
+  } catch (e) { return false; }
+}
+function linkInvito() {
+  const b = btoa(unescape(encodeURIComponent(JSON.stringify({ u: cfg.url, t: cfg.token }))));
+  return location.origin + location.pathname + '#invito=' + encodeURIComponent(b);
+}
+
+function chiSei(app) {
+  app.innerHTML = `<div class="hello">
+    <h1>Chi sei?</h1>
+    <p class="muted">Serve solo per salutarti.</p>
+    <div class="chips">${FAMIGLIA.concat(['Federico']).map(n => `<button class="chip" data-chi="${n}">${n}</button>`).join('')}</div>
+  </div>`;
+  app.querySelectorAll('[data-chi]').forEach(b => b.onclick = () => { cfg.chi = b.dataset.chi; salvaCfg(); render(); });
+}
+
+function sceltaAuto(app, daImpostazioni) {
+  const tutte = lista('veicoli').filter(v => v.tipo !== 'Trattorino / attrezzo');
+  const sel = new Set(cfg.miei || []);
+  const disegna = () => {
+    app.innerHTML = `<div class="hello" style="padding-top:6vh">
+      <h1>Quali sono le tue auto?</h1>
+      <p class="muted">Vedrai solo quelle che scegli. Puoi cambiarle quando vuoi.</p>
+      <div class="chips">${tutte.map(v => `<button class="chip ${sel.has(v.id) ? 'on' : ''}" data-v="${v.id}">${esc(nomeAuto(v))}</button>`).join('') || '<span class="muted">Nel foglio non ci sono ancora auto.</span>'}</div>
+      <button class="btn line" id="nuova">＋ Aggiungi un'auto</button>
+      <button class="btn" id="ok" ${sel.size ? '' : 'disabled'}>Fatto</button>
+    </div>`;
+    app.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { sel.has(b.dataset.v) ? sel.delete(b.dataset.v) : sel.add(b.dataset.v); disegna(); });
+    $('#nuova').onclick = () => formAuto(id => { sel.add(id); disegna(); });
+    $('#ok').onclick = () => { cfg.miei = [...sel]; if (!sel.has(cfg.auto)) cfg.auto = cfg.miei[0]; salvaCfg(); render(); };
+  };
+  disegna();
+}
+
+function casa(app) {
+  const mie = mieAuto(), v = autoAttiva();
+  const mov = movimenti(v);
+  const d = new Date(), ym = d.getFullYear() + '-' + z(d.getMonth() + 1);
+  const mese = mov.filter(x => String(x.r.data).startsWith(ym)).reduce((s, x) => s + x.eur, 0);
+  const totale = mov.reduce((s, x) => s + x.eur, 0);
+  const c = consumo(v);
+  // ultimi 6 mesi
+  const mesi = [];
+  for (let i = 5; i >= 0; i--) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); mesi.push({ k: x.getFullYear() + '-' + z(x.getMonth() + 1), n: MESI[x.getMonth()] }); }
+  mesi.forEach(m => { m.v = mov.filter(x => String(x.r.data).startsWith(m.k)).reduce((s, x) => s + x.eur, 0); });
+  const max = Math.max(1, ...mesi.map(m => m.v));
+  const [intero, dec] = eur(mese).replace('€', '').trim().split(',');
+  const ora = d.getHours(), saluto = ora < 13 ? 'Buongiorno' : ora < 18 ? 'Buon pomeriggio' : 'Buonasera';
+
+  app.innerHTML = `
+    <header class="top">
+      <div><h1>Ciao ${esc(cfg.chi)} 🌸</h1><p>${saluto} · ${esc(d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }))}</p></div>
+      <button class="round" id="imp" aria-label="Impostazioni">⚙️</button>
+    </header>
+    ${mie.length > 1 ? `<div class="cars">${mie.map(x => `<button class="car ${x.id === v.id ? 'on' : ''}" data-auto="${x.id}">${esc(nomeAuto(x))}</button>`).join('')}</div>` : ''}
+    <section class="ticket" aria-label="Spesa del mese">
+      <div class="car-name"><span>${esc(nomeAuto(v))}</span><span>${fmtN(kmAttuali(v))} km</span></div>
+      <div class="big num"><small>€</small>${intero}<small style="margin:0 0 0 2px">,${dec}</small></div>
+      <div class="cap">spesi a ${MESI_L[d.getMonth()]} tra carburante e manutenzione</div>
+      <div class="bars" aria-hidden="true">${mesi.map(m => `<div><i style="height:${Math.round(m.v / max * 100)}%"></i><span>${m.n}</span></div>`).join('')}</div>
+    </section>
+    <div class="facts">
+      <div><span class="num">${eur(totale, 0)}</span><span class="lbl">spesi in totale</span></div>
+      <div>${c.kmL ? `<span class="num">${fmtN(c.kmL, 1)} km/l</span><span class="lbl">consumo medio · ${fmtN(c.l100, 1)} l/100 km</span>`
+        : '<span class="num">—</span><span class="lbl">consumo medio: servono due pieni</span>'}</div>
+    </div>
+    <div class="actions">
+      <button class="act fuel" id="addF"><b>⛽</b>Rifornimento</button>
+      <button class="act fix" id="addM"><b>🔧</b>Manutenzione</button>
+    </div>
+    ${bannerHome()}
+    <h2>Ultime spese</h2>
+    <div>${mov.slice(0, 15).map(riga).join('') || '<div class="empty">Ancora niente. Il prossimo pieno lo segni qui.</div>'}</div>
+    <button class="sync" id="stato" style="display:block;width:100%;border:0;background:none">${esc(testoStato())}</button>`;
+
+  app.querySelectorAll('[data-auto]').forEach(b => b.onclick = () => { cfg.auto = b.dataset.auto; salvaCfg(); render(); });
+  app.querySelectorAll('[data-mov]').forEach(b => b.onclick = () => { const [t, id] = b.dataset.mov.split(':'); t === 'rifornimenti' ? formRif(prendi(t, id)) : formMan(prendi(t, id)); });
+  $('#addF').onclick = () => formRif();
+  $('#addM').onclick = () => formMan();
+  $('#imp').onclick = impostazioni;
+  const nh = $('#noHome'); if (nh) nh.onclick = () => { L.set('noHome', true); render(); };
+  const ib = $('#installa'); if (ib) ib.onclick = async () => { const p = installa; installa = null; p.prompt(); await p.userChoice.catch(() => {}); render(); };
+  $('#stato').onclick = () => Sync.vai(true);
+}
+const standalone = () => !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches));
+const suIphone = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
+const suAndroid = () => /Android/.test(navigator.userAgent);
+let installa = null;   // Android/Chrome: richiesta di installazione pronta
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installa = e; if (cfg.url) render(); });
+window.addEventListener('appinstalled', () => { installa = null; L.set('noHome', true); render(); });
+function bannerHome() {
+  if (standalone() || L.get('noHome', false)) return '';
+  const box = t => `<div class="hint" style="margin-top:18px;padding:12px 14px;border-radius:14px;background:var(--card);border:1.5px solid var(--line)">${t} <button class="chip" id="noHome" style="display:block;margin-top:10px">Fatto</button></div>`;
+  if (installa) return `<button class="btn line" id="installa">📲 Installa l'app sul telefono</button>`;
+  if (suIphone()) return box('📲 Per averla come un\'app: tocca <b>Condividi</b> in basso, poi <b>Aggiungi alla schermata Home</b>.');
+  if (suAndroid()) return box('📲 Per averla come un\'app: tocca <b>⋮</b> in alto a destra in Chrome, poi <b>Installa app</b> (o <b>Aggiungi a schermata Home</b>).');
+  return '';
+}
+function riga(x) {
+  const r = x.r;
+  if (x.t === 'rifornimenti') {
+    const det = [dataBreve(r.data), r.litri ? fmtN(num(r.litri), 1) + ' l' : '', r.carburante !== carburanti(autoAttiva())[0] ? r.carburante : '', r.pieno === false ? 'non pieno' : ''].filter(Boolean).join(' · ');
+    return `<button class="row" data-mov="rifornimenti:${r.id}"><span class="ic f">⛽</span><span class="tx"><span class="t">Rifornimento</span><span class="s">${esc(det)}</span></span><span class="eur">${eur(x.eur)}</span></button>`;
+  }
+  const det = [dataBreve(r.data), r.descrizione || r.officina || ''].filter(Boolean).join(' · ');
+  return `<button class="row" data-mov="manutenzioni:${r.id}"><span class="ic m">${EMO_T[r.tipo] || '🔧'}</span><span class="tx"><span class="t">${esc(r.tipo || 'Manutenzione')}</span><span class="s">${esc(det)}</span></span><span class="eur">${eur(x.eur)}</span></button>`;
+}
+
+/* ---------- Pannelli ---------- */
+function apri(html) { $('#sheet').innerHTML = '<div class="grab"></div>' + html; $('#bg').classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
+function chiudi() { $('#bg').classList.add('hidden'); document.body.style.overflow = ''; }
+$('#bg').addEventListener('click', e => { if (e.target.id === 'bg' || e.target.closest('[data-x]')) chiudi(); });
+const testa = t => `<div class="sheet-h"><h2>${t}</h2><button class="round" data-x aria-label="Chiudi">✕</button></div>`;
+
+function formRif(r) {
+  const v = autoAttiva(), carb = carburanti(v);
+  let c = r ? r.carburante : carb[0], pieno = r ? r.pieno !== false : true;
+  const ultimo = kmAttuali(v);
+  apri(`${testa(r ? 'Rifornimento' : 'Nuovo rifornimento')}
+    ${carb.length > 1 ? `<div class="chips" id="carb">${carb.map(x => `<button class="chip ${x === c ? 'on' : ''}" data-c="${x}">${x}</button>`).join('')}</div>` : ''}
+    <label class="f">Quanto hai pagato?<input class="in big" id="tot" inputmode="decimal" placeholder="0,00 €" value="${r ? esc(fmtN(num(r.totale), 2)) : ''}"></label>
+    <div class="two">
+      <label class="f">Prezzo al litro<input class="in" id="pr" inputmode="decimal" placeholder="es. 1,859" value="${r && r.prezzo ? esc(fmtN(num(r.prezzo), 3)) : ''}"></label>
+      <label class="f">Litri<input class="in" id="li" inputmode="decimal" placeholder="si calcola da solo" value="${r && r.litri ? esc(fmtN(num(r.litri), 2)) : ''}"></label>
+    </div>
+    <label class="f">Km sul cruscotto<input class="in" id="km" inputmode="numeric" placeholder="${ultimo ? 'l\'ultima volta ' + fmtN(ultimo) : 'es. 45200'}" value="${r && r.km ? esc(num(r.km)) : ''}"></label>
+    <label class="f">Data<input class="in" id="data" type="date" value="${esc(r ? r.data : oggi())}"></label>
+    <label class="switch">Ho fatto il pieno<input type="checkbox" id="pieno" ${pieno ? 'checked' : ''}></label>
+    <div class="hint">Se fai sempre il pieno, il consumo medio viene più preciso.</div>
+    <div class="err" id="err"></div>
+    <button class="btn" id="ok">${r ? 'Salva modifiche' : 'Salva rifornimento'}</button>
+    ${r ? '<button class="btn ghost" id="del">Elimina rifornimento</button>' : ''}`);
+  const cb = $('#carb');
+  if (cb) cb.onclick = e => { const b = e.target.closest('[data-c]'); if (!b) return; c = b.dataset.c; cb.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); };
+  const calcola = () => { const t = num($('#tot').value), p = num($('#pr').value); if (t && p && !$('#li').dataset.mano) $('#li').value = fmtN(t / p, 2); };
+  $('#tot').oninput = calcola; $('#pr').oninput = calcola;
+  $('#li').oninput = () => { $('#li').dataset.mano = $('#li').value ? '1' : ''; };
+  $('#ok').onclick = () => {
+    const tot = num($('#tot').value), km = Math.round(num($('#km').value));
+    let li = num($('#li').value), pr = num($('#pr').value);
+    if (!tot) return $('#err').textContent = 'Scrivi quanto hai pagato.';
+    if (!km) return $('#err').textContent = 'Scrivi i km che vedi sul cruscotto.';
+    if (!li && pr) li = Math.round(tot / pr * 100) / 100;
+    if (li && !pr) pr = Math.round(tot / li * 1000) / 1000;
+    if (!r && ultimo && km < ultimo && !$('#err').dataset.ok) { $('#err').dataset.ok = '1'; return $('#err').textContent = `I km sono meno dell'ultima volta (${fmtN(ultimo)}). Se sono giusti, tocca di nuovo Salva.`; }
+    salva('rifornimenti', Object.assign({}, r || {}, { veicoloId: v.id, carburante: c, data: $('#data').value || oggi(), km, litri: li || '', prezzo: pr || '', totale: tot, pieno: $('#pieno').checked }));
+    chiudi(); render(); toast(r ? 'Modifiche salvate' : 'Rifornimento salvato');
+  };
+  if (r) $('#del').onclick = () => { if (confirm('Eliminare questo rifornimento?')) { elimina('rifornimenti', r.id); chiudi(); render(); toast('Rifornimento eliminato'); } };
+}
+
+function formMan(r) {
+  const v = autoAttiva();
+  let tipo = r ? r.tipo : '';
+  apri(`${testa(r ? 'Manutenzione' : 'Nuova manutenzione')}
+    <label class="f">Cosa hai fatto?</label>
+    <div class="chips" id="tipi">${TIPI.map(([t, e]) => `<button class="chip ${t === tipo ? 'on' : ''}" data-t="${t}">${e} ${t}</button>`).join('')}</div>
+    <label class="f">Quanto hai pagato?<input class="in big" id="costo" inputmode="decimal" placeholder="0,00 €" value="${r && r.costo ? esc(fmtN(num(r.costo), 2)) : ''}"></label>
+    <label class="f">Dove o cosa <small>(facoltativo)</small><input class="in" id="desc" placeholder="es. gomme invernali, officina Rossi" value="${esc(r ? r.descrizione || r.officina || '' : '')}"></label>
+    <div class="two">
+      <label class="f">Data<input class="in" id="data" type="date" value="${esc(r ? r.data : oggi())}"></label>
+      <label class="f">Km <small>(facoltativo)</small><input class="in" id="km" inputmode="numeric" value="${r && r.km ? esc(num(r.km)) : ''}"></label>
+    </div>
+    <div class="err" id="err"></div>
+    <button class="btn" id="ok">${r ? 'Salva modifiche' : 'Salva manutenzione'}</button>
+    ${r ? '<button class="btn ghost" id="del">Elimina manutenzione</button>' : ''}`);
+  $('#tipi').onclick = e => { const b = e.target.closest('[data-t]'); if (!b) return; tipo = b.dataset.t; $('#tipi').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); };
+  $('#ok').onclick = () => {
+    const costo = num($('#costo').value);
+    if (!tipo) return $('#err').textContent = 'Scegli cosa hai fatto.';
+    if (!costo) return $('#err').textContent = 'Scrivi quanto hai pagato.';
+    const km = Math.round(num($('#km').value));
+    salva('manutenzioni', Object.assign({}, r || {}, { veicoloId: v.id, tipo, data: $('#data').value || oggi(), km: km || '', costo, descrizione: $('#desc').value.trim() }));
+    chiudi(); render(); toast(r ? 'Modifiche salvate' : 'Manutenzione salvata');
+  };
+  if (r) $('#del').onclick = () => { if (confirm('Eliminare questa manutenzione?')) { elimina('manutenzioni', r.id); chiudi(); render(); toast('Manutenzione eliminata'); } };
+}
+
+function formAuto(fatto) {
+  let alim = 'Benzina', c2 = '';
+  apri(`${testa('Nuova auto')}
+    <label class="f">Come la chiami?<input class="in" id="nome" placeholder="es. Panda di Beatrice"></label>
+    <label class="f">Va a</label>
+    <div class="chips" id="alim">${['Benzina', 'Diesel', 'GPL', 'Metano', 'Ibrido', 'Elettrico'].map(a => `<button class="chip ${a === alim ? 'on' : ''}" data-a="${a}">${a}</button>`).join('')}</div>
+    <label class="f">Km di oggi<input class="in" id="km" inputmode="numeric" placeholder="es. 45200"></label>
+    <div class="err" id="err"></div>
+    <button class="btn" id="ok">Aggiungi auto</button>`);
+  $('#alim').onclick = e => { const b = e.target.closest('[data-a]'); if (!b) return; alim = b.dataset.a; c2 = ['GPL', 'Metano'].includes(alim) ? 'Benzina' : ''; $('#alim').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); };
+  $('#ok').onclick = () => {
+    const nome = $('#nome').value.trim();
+    if (!nome) return $('#err').textContent = 'Scrivi un nome per l\'auto.';
+    const r = salva('veicoli', { tipo: 'Auto', nome, marca: '', modello: '', alimentazione: alim, carburante2: c2, unita: 'km', kmIniziali: Math.round(num($('#km').value)) || '' });
+    chiudi(); fatto(r.id);
+  };
+}
+
+function impostazioni() {
+  apri(`${testa('Impostazioni')}
+    <button class="btn line" id="auto">🚗 Cambia le mie auto</button>
+    <button class="btn line" id="chi">🙋 Non sono ${esc(cfg.chi)}</button>
+    <button class="btn line" id="inv">💌 Copia il link per un'altra persona</button>
+    <button class="btn line" id="agg">🔄 Aggiorna dal foglio</button>
+    <p class="hint">I dati stanno nel foglio Google di Garage: Federico li vede anche lì. Il link d'invito apre le auto di famiglia, mandalo solo in famiglia.</p>
+    <button class="btn ghost" id="esci">Scollega questo telefono</button>`);
+  $('#auto').onclick = () => { chiudi(); sceltaAuto($('#app')); };
+  $('#chi').onclick = () => { cfg.chi = ''; salvaCfg(); chiudi(); render(); };
+  $('#agg').onclick = () => { chiudi(); Sync.vai(true); };
+  $('#inv').onclick = async () => {
+    const l = linkInvito();
+    try { if (navigator.share) await navigator.share({ title: 'La mia auto', text: 'Apri questo link per segnare i rifornimenti:', url: l }); else { await navigator.clipboard.writeText(l); toast('Link copiato'); } }
+    catch (e) { try { await navigator.clipboard.writeText(l); toast('Link copiato'); } catch (er) { prompt('Copia il link:', l); } }
+  };
+  $('#esci').onclick = () => {
+    const n = TAB.reduce((s, t) => s + dati[t].filter(r => r._dirty).length, 0);
+    if (!confirm(n ? `Ci sono ${n} cose non ancora salvate nel foglio: scollegando si perdono. Scollegare lo stesso?` : 'Scollegare questo telefono? I dati restano nel foglio.')) return;
+    cfg = {}; dati = { veicoli: [], rifornimenti: [], manutenzioni: [] }; salvaCfg(); salvaDati(); chiudi(); render();
+  };
+}
+
+/* ---------- Avvio ---------- */
+(function avvio() {
+  // In Safari il link d'invito resta nell'indirizzo: così l'icona aggiunta alla schermata Home parte già collegata
+  if (location.hash.includes('invito=')) { const nuovo = !cfg.url; leggiInvito(location.hash); if (standalone()) history.replaceState(null, '', location.pathname); if (nuovo) return primoCollegamento(); }
+  render();
+  if (cfg.url) Sync.vai();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && cfg.url) Sync.vai(); });
+  window.addEventListener('online', () => Sync.presto(300));
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>
