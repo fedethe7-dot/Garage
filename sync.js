@@ -91,6 +91,8 @@ const Sync = {
       c2.tabelleNo = TABLES.filter(t => !Array.isArray((res.data || {})[t]));
       if (prima && !c2.tabelleNo.length) setTimeout(() => this.schedule(300), 0);
       if (c2.tabelleNo.length && (!c2.provaTabelle || Date.now() - c2.provaTabelle > 6 * 3600e3)) { c2.provaTabelle = Date.now(); c2.tabelleNo = []; }
+      // il foglio (Garage Sync v4) manda i codici di mamma e Beatrice per i link d'invito di "La mia auto"
+      if (res.codiciFamiglia) c2.codiciFamiglia = res.codiciFamiglia;
       c2.lastSync = new Date().toISOString();
       c2.ultimoInvio = n;
       this.saveCfg(c2);
