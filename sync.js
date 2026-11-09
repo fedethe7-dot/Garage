@@ -106,6 +106,10 @@ const Sync = {
         if (manuale) UI.toast(cambiati || n ? `Sincronizzato ✓ (${n} inviati, ${cambiati} ricevuti)` : 'Già tutto aggiornato ✓');
       }
       if (cambiati) UI.refresh();
+      // se ho corretto qualcosa arrivato dal foglio (es. date con l'ora), lo rimando subito: una volta sola
+      const daRimandare = TABLES.some(t => (DB.data[t] || []).some(r => r._dirty && !r._file));
+      if (daRimandare && !this._seguito) { this._seguito = true; setTimeout(() => this.schedule(500), 0); }
+      else this._seguito = false;
     } catch (e) {
       this.setStato('errore', e.message);
       if (manuale) UI.toast('Errore: ' + e.message);
