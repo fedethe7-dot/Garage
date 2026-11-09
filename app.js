@@ -3,7 +3,7 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '2.5.2';
+const APP_VERSION = '2.6.0';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -317,7 +317,12 @@ const UI = {
   avatar(v, cls = '') {
     return `<div class="vavatar ${cls}">${v.foto ? `<img src="${v.foto}" alt="">` : this.emojiVeicolo(v)}</div>`;
   },
-  veicoliOrdinati() { return DB.list('veicoli').sort((a, b) => (a.ordine || 0) - (b.ordine || 0) || (a.createdAt || '').localeCompare(b.createdAt || '')); },
+  // prima i miei mezzi, poi quelli di famiglia (in fondo)
+  veicoliOrdinati() { return DB.list('veicoli').sort((a, b) => (Fam.mio(b) - Fam.mio(a)) || (a.ordine || 0) - (b.ordine || 0) || (a.createdAt || '').localeCompare(b.createdAt || '')); },
+  mieiVeicoli() { return this.veicoliOrdinati().filter(v => Fam.mio(v)); },
+  veicoliFamiglia() { return this.veicoliOrdinati().filter(v => !Fam.mio(v)); },
+  /** Nome del pulsante "tutti": se ci sono mezzi di famiglia, "tutti" vuol dire solo i miei */
+  etichettaTutti(base) { return this.veicoliFamiglia().length ? '🚦 I miei mezzi' : base; },
 
   toast(msg) {
     const t = $('#toast');
@@ -399,9 +404,9 @@ const UI = {
      ========================================================= */
   vHome() {
     this.setTitle('Garage');
-    const veicoli = this.veicoliOrdinati();
+    const veicoli = this.mieiVeicoli(), famiglia = this.veicoliFamiglia();
     const view = $('#view');
-    if (!veicoli.length) {
+    if (!veicoli.length && !famiglia.length) {
       view.innerHTML = `
         <div class="hello"><h2>${this.saluto()}</h2><p>${this.oggiLungo()}</p></div>
         <div class="card empty">
@@ -447,6 +452,7 @@ const UI = {
         ${veicoli.map(v => this.miniVeicolo(v)).join('')}
         <div class="mini-v add" data-act="new-veicolo">${ICON.plus}<span>Aggiungi</span></div>
       </div>
+      ${famiglia.length ? `<div class="list" style="margin-top:10px"><div class="item" data-go="#mezzi"><div class="ic t-exp">👨‍👩‍👧</div><div class="main"><div class="t">Mezzi di famiglia</div><div class="s">${famiglia.map(v => esc(this.nomeVeicolo(v)) + ' · ' + esc(Fam.di(v))).join(', ')}</div></div>${ICON.chevron}</div></div>` : ''}
 
       <div class="section-title"><h3>Ultimi movimenti</h3><a href="#movimenti">Vedi tutti</a></div>
       ${this.listaMovimenti(null, 5)}
@@ -482,6 +488,7 @@ const UI = {
             <div class="vname">${esc(this.nomeVeicolo(v))}</div>
             <div class="vsub">${esc([v.marca, v.modello].filter(Boolean).join(' '))}${v.targa ? ' · ' + esc(v.targa) : ''}</div>
             <span class="chip acc vchip">${CONFIG.emojiCarburante[v.alimentazione] || '⛽'} ${esc(v.alimentazione || '')}${v.carburante2 ? ' + ' + esc(v.carburante2) : ''}</span>
+            ${Fam.di(v) ? `<span class="chip vchip">👨‍👩‍👧 ${esc(Fam.di(v))}</span>` : ''}
           </div>
         </div>
         <div class="vmetrics">
@@ -511,7 +518,8 @@ const UI = {
 
   /* ---------- Movimenti ---------- */
   movimenti(vid) {
-    const f = r => !vid || r.veicoloId === vid;
+    const miei = new Set(this.mieiVeicoli().map(v => v.id));
+    const f = r => vid ? r.veicoloId === vid : miei.has(r.veicoloId);
     const out = [];
     DB.list('rifornimenti').filter(f).forEach(r => out.push({ t: 'rifornimenti', r, data: r.data, km: num(r.km) }));
     DB.list('manutenzioni').filter(f).forEach(r => out.push({ t: 'manutenzioni', r, data: r.data, km: num(r.km) }));
@@ -605,7 +613,7 @@ const UI = {
     $('#view').innerHTML = `
       <div class="pills">${tipi.map(([k, l]) => `<button class="${st.movTipo === k ? 'on' : ''}" data-act="mtipo" data-v="${k}">${l}</button>`).join('')}</div>
       ${veicoli.length > 1 ? `<div class="pills" style="margin-top:6px">
-        <button class="${st.movVeicolo === 'tutti' ? 'on' : ''}" data-act="mveicolo" data-v="tutti">🚦 Tutti i mezzi</button>
+        <button class="${st.movVeicolo === 'tutti' ? 'on' : ''}" data-act="mveicolo" data-v="tutti">${this.etichettaTutti('🚦 Tutti i mezzi')}</button>
         ${veicoli.map(v => `<button class="${st.movVeicolo === v.id ? 'on' : ''}" data-act="mveicolo" data-v="${v.id}">${this.avatar(v, 'sm')}${esc(this.nomeVeicolo(v))}</button>`).join('')}
       </div>` : ''}
       ${this.listaMovimenti(st.movVeicolo === 'tutti' ? null : st.movVeicolo, 0, st.movTipo === 'tutti' ? null : [st.movTipo], true)}`;
@@ -673,10 +681,14 @@ const UI = {
      ========================================================= */
   vMezzi() {
     this.setTitle('I miei mezzi');
-    const veicoli = this.veicoliOrdinati();
+    const veicoli = this.mieiVeicoli(), famiglia = this.veicoliFamiglia();
+    const perNome = {};
+    famiglia.forEach(v => (perNome[Fam.di(v)] = perNome[Fam.di(v)] || []).push(v));
     $('#view').innerHTML = `
       ${veicoli.length ? `<div class="grid grid-auto">${veicoli.map(v => this.vcard(v)).join('')}</div>` :
         `<div class="card empty"><div class="e-ic">🚗</div><h4>Nessun mezzo</h4><p>Aggiungi auto, moto, scooter o altri mezzi.</p></div>`}
+      ${famiglia.length ? `<div class="section-title"><h3>👨‍👩‍👧 Di famiglia</h3><span class="muted">fuori dai tuoi conti</span></div>` +
+        Object.entries(perNome).map(([nome, vs]) => `<div class="day-label">${esc(nome)}</div><div class="grid grid-auto">${vs.map(v => this.vcard(v)).join('')}</div>`).join('') : ''}
       <div class="spacer"></div>
       <button class="btn block" data-act="new-veicolo">${ICON.plus} Nuovo mezzo</button>`;
   },
@@ -716,6 +728,7 @@ const UI = {
             <div class="vsub">${esc([v.marca, v.modello, v.anno].filter(Boolean).join(' '))}</div>
             <div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap">
               ${v.targa ? `<span class="chip">${esc(v.targa)}</span>` : ''}
+              ${Fam.di(v) ? `<span class="chip">👨‍👩‍👧 di ${esc(Fam.di(v))}</span>` : ''}
               <span class="chip acc">${CONFIG.emojiCarburante[v.alimentazione] || '⛽'} ${esc(v.alimentazione || '')}${v.carburante2 ? ' + ' + esc(v.carburante2) : ''}</span>
             </div>
           </div>
@@ -765,8 +778,10 @@ const UI = {
       ['Alimentazione', v.alimentazione + (v.carburante2 ? ' + ' + v.carburante2 : '')],
       ['Cilindrata', v.cilindrata ? F.num(num(v.cilindrata)) + ' cc' : ''], ['Potenza', v.potenza ? F.num(num(v.potenza)) + ' CV' : ''],
       ['Serbatoio', v.serbatoio ? F.num(num(v.serbatoio)) + ' L' : ''], ['Serbatoio 2', v.serbatoio2 ? F.num(num(v.serbatoio2)) + ' L' : ''],
-      [u === 'ore' ? 'Ore iniziali' : 'Km iniziali', F.num(num(v.kmIniziali))]
+      [u === 'ore' ? 'Ore iniziali' : 'Km iniziali', F.num(num(v.kmIniziali))],
+      ['Di chi è', Fam.di(v) ? Fam.di(v) + ' (famiglia)' : '']
     ].filter(x => x[1]);
+    const noteV = Fam.pulisci(v.note);
 
     return `
       <div class="grid grid-2 grid-4-lg">
@@ -785,7 +800,7 @@ const UI = {
       ${this.listaMovimenti(v.id, 5)}
       <div class="section-title"><h3>Dati del mezzo</h3><button class="link" data-edit="veicoli:${v.id}">Modifica</button></div>
       <div class="kv">${kv.map(([k, val]) => `<div><span>${k}</span><b>${esc(val)}</b></div>`).join('')}</div>
-      ${v.note ? `<div class="card" style="margin-top:12px"><div class="muted">📝 Note</div>${esc(v.note)}</div>` : ''}`;
+      ${noteV ? `<div class="card" style="margin-top:12px"><div class="muted">📝 Note</div>${esc(noteV)}</div>` : ''}`;
   },
 
   barreCategorie(cat, emoji = CONFIG.emojiSpesa) {
@@ -826,7 +841,8 @@ const UI = {
     }
     const st = this.state;
     if (st.statVeicolo !== 'tutti' && !DB.get('veicoli', st.statVeicolo)) st.statVeicolo = 'tutti';
-    const ids = st.statVeicolo === 'tutti' ? veicoli.map(v => v.id) : [st.statVeicolo];
+    // "Tutti" = solo i miei mezzi: quelli di famiglia si guardano scegliendoli uno per uno
+    const ids = st.statVeicolo === 'tutti' ? this.mieiVeicoli().map(v => v.id) : [st.statVeicolo];
     const r = Periodi.range(st.statPeriodo, st.statCustom);
     const prev = Periodi.previous(r);
     const s = Calc.stats(ids, r);
@@ -837,7 +853,7 @@ const UI = {
       <div class="pills">${CONFIG.periodi.map(([k, l]) => `<button class="${k === st.statPeriodo ? 'on' : ''}" data-act="periodo" data-p="${k}">${l}</button>`).join('')}</div>
       ${st.statPeriodo === 'custom' ? `<div class="custom-range"><div class="field"><label>Dal</label><input type="date" id="cFrom" value="${r.from}"></div><div class="field"><label>Al</label><input type="date" id="cTo" value="${r.to}"></div></div>` : ''}
       ${veicoli.length > 1 ? `<div class="pills" style="margin-top:6px">
-        <button class="${st.statVeicolo === 'tutti' ? 'on' : ''}" data-act="sveicolo" data-v="tutti">🚦 Tutti</button>
+        <button class="${st.statVeicolo === 'tutti' ? 'on' : ''}" data-act="sveicolo" data-v="tutti">${this.etichettaTutti('🚦 Tutti')}</button>
         ${veicoli.map(v => `<button class="${st.statVeicolo === v.id ? 'on' : ''}" data-act="sveicolo" data-v="${v.id}">${this.avatar(v, 'sm')}${esc(this.nomeVeicolo(v))}</button>`).join('')}
       </div>` : ''}
       <div class="seg" style="margin:12px 0 14px">
@@ -1554,6 +1570,8 @@ const UI = {
         { k: 'foto', type: 'photo', label: 'Foto' },
         { k: 'tipo', label: 'Che mezzo è?', type: 'chips', options: CONFIG.tipiVeicolo.map(t => ({ v: t, e: CONFIG.iconaTipo[t], l: t.replace(' / attrezzo', '') })), req: true },
         { k: 'nome', label: 'Come lo chiami?', placeholder: 'es. XSR700, Panda GPL', hint: 'Il nome che vedrai nell\'app' },
+        { k: '_famiglia', label: 'Di chi è?', type: 'chips', hint: 'I mezzi di famiglia stanno in fondo e non contano nelle tue spese',
+          options: [{ v: '', e: '🙋', l: 'Mio' }].concat([...new Set(Fam.NOMI.concat(DB.list('veicoli').map(x => Fam.di(x)).filter(Boolean)))].map(n => ({ v: n, e: '👨‍👩‍👧', l: n }))) },
         [{ k: 'marca', label: 'Marca', placeholder: 'es. Yamaha', req: true }, { k: 'modello', label: 'Modello', placeholder: 'es. XSR700', req: true }],
         { k: 'alimentazione', label: 'Alimentazione', type: 'chips', options: CONFIG.alimentazioni.map(a => ({ v: a, e: CONFIG.emojiCarburante[a] || (a === 'Ibrido' ? '🔋' : '⛽') })), req: true },
         { k: 'carburante2', label: 'Secondo carburante', type: 'chips', options: [{ v: '', l: 'Nessuno' }, 'Benzina', 'GPL', 'Metano'], hint: 'Per auto GPL o metano: la benzina' },
@@ -1565,6 +1583,12 @@ const UI = {
           { k: 'note', label: 'Note', type: 'textarea' }
         ] }
       ],
+      valida(o) {
+        // "di chi è" viaggia nelle note del mezzo (vedi Fam in calc.js)
+        o.note = Fam.imposta(o.note, o._famiglia);
+        delete o._famiglia;
+        return true;
+      },
       mount(root) {
         const q = n => root.querySelector(`[name=${n}]`);
         q('alimentazione').addEventListener('change', () => { if (['GPL', 'Metano'].includes(q('alimentazione').value) && !q('carburante2').value) UI.setChip(root, 'carburante2', 'Benzina'); });
@@ -1976,6 +2000,7 @@ const UI = {
   openForm(table, id, preset = {}) {
     const def = this.forms[table];
     const rec = id ? { ...DB.get(table, id) } : {};
+    if (table === 'veicoli') { rec._famiglia = Fam.di(rec); rec.note = Fam.pulisci(rec.note); }
     if (!id) {
       if (table !== 'veicoli') rec.veicoloId = this.defaultVeicolo(preset.veicoloId);
       const oggi = D.today();
