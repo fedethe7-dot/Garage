@@ -490,3 +490,148 @@ ol.tappe li.end::before { background: #ef4444; color: #fff; }
 .map-full-map .map-empty { height: 100%; }
 #mappaViaggio { cursor: zoom-in; }
 .map-dim .leaflet-tile-pane { filter: brightness(.82) contrast(1.05) saturate(.85); }
+
+/* =========================================================
+   v3 · SCHEDE CON LA FOTO GRANDE + STILI (Classico, Sport, Showroom, Cruscotto)
+   Lo stile si sceglie in Temi e colori; il colore (--accent) vale per tutti.
+   ========================================================= */
+
+/* ---------- Scheda di un mezzo nell'elenco ---------- */
+.vc { background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow); overflow: hidden; cursor: pointer; display: flex; flex-direction: column; transition: transform .12s ease; position: relative; }
+.vc:active { transform: scale(.985); }
+.vc-foto { position: relative; height: 170px; background: var(--surface-2); flex-shrink: 0; }
+.vc.senza-foto .vc-foto { height: 118px; }
+.vc-img, .vh-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vc-vuota, .vh-vuota { width: 100%; height: 100%; border: 0; background: var(--surface-2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--text-2); cursor: pointer; font-weight: 800; font-size: 13px; }
+.vc-vuota .em, .vh-vuota .em { font-size: 42px; line-height: 1; }
+.vc-chips { position: absolute; top: 10px; left: 10px; right: 90px; display: flex; gap: 6px; flex-wrap: wrap; pointer-events: none; z-index: 2; }
+.vc-chip { background: color-mix(in srgb, var(--bg) 84%, transparent); color: var(--text); font-size: 12px; font-weight: 800; padding: 5px 10px; border-radius: 99px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); white-space: nowrap; }
+.vc-chip.acc { background: var(--accent); color: var(--on-accent); }
+.vc-targa { position: absolute; top: 10px; right: 10px; z-index: 2; background: #ffffff; color: #111214; font-size: 12px; font-weight: 900; letter-spacing: 1px; padding: 5px 9px; border-radius: 8px; white-space: nowrap; }
+.vc.senza-foto .vc-chips { right: 10px; }
+.vc.senza-foto .vc-targa { display: none; }
+.vc-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 2; }
+.vc-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; }
+.vc-nome { min-width: 0; }
+.vc-kpi { text-align: right; white-space: nowrap; }
+.vc-kpi b { font-size: 20px; font-weight: 900; color: var(--accent-ink); }
+.vc-kpi span { font-size: 12px; color: var(--text-2); font-weight: 700; }
+.vc-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.vc-stats div { background: var(--surface-2); border-radius: 14px; padding: 8px 10px; min-width: 0; }
+.vc-stats span { display: block; font-size: 11.5px; color: var(--text-2); font-weight: 700; }
+.vc-stats b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vc-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-top: 1px solid var(--border); padding-top: 10px; }
+.vc-foot .chip { white-space: normal; }
+.vc-apri { color: var(--accent-ink); font-weight: 800; font-size: 14px; white-space: nowrap; }
+
+/* ---------- Testa della scheda del mezzo ---------- */
+.vhero { position: relative; background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow); overflow: hidden; }
+.vh-foto { height: 220px; background: var(--surface-2); }
+.vhero.senza-foto .vh-foto { height: 130px; }
+.vh-info { padding: 14px 16px 16px; position: relative; z-index: 2; }
+.vh-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.vh-chips .vc-targa { position: static; }
+.vh-nome { font-size: 25px; font-weight: 900; line-height: 1.15; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.vh-sub { color: var(--text-2); font-weight: 600; margin-top: 2px; }
+.vh-edit { position: absolute; top: 12px; right: 12px; z-index: 3; }
+
+/* ---------- Mezzo piccolo in Home, con foto ---------- */
+.mini-v.con-foto { padding-top: 0; overflow: hidden; }
+.mini-foto { display: block; width: calc(100% + 28px); margin: 0 -14px; height: 112px; object-fit: cover; }
+
+/* ---------- Scelta dello stile ---------- */
+.stili { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.stile-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; padding: 10px; border-radius: 18px; border: 2px solid var(--border); background: var(--surface); cursor: pointer; min-height: 44px; }
+.stile-btn.on { border-color: var(--accent); }
+.stile-btn small { color: var(--text-2); font-size: 12px; line-height: 1.3; }
+.stile-sw { width: 100%; height: 44px; border-radius: 12px; display: flex; align-items: flex-end; gap: 5px; padding: 7px; margin-bottom: 4px; border: 1px solid rgba(127,127,127,.25); }
+.stile-sw i { flex: 1; height: 14px; border-radius: 5px; }
+
+/* =========================================================
+   STILE SPORT — scuro, arancio-friendly, foto grande in cima
+   ========================================================= */
+:root[data-stile="sport"] {
+  color-scheme: dark;
+  --bg: #111214; --surface: #1A1B1F; --surface-2: #222328; --border: #2A2B30;
+  --text: #F4F4F5; --text-2: #A1A1AA; --text-3: #8B8B94;
+  --on-accent: #111214;
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, #1A1B1F);
+  --accent-ink: color-mix(in srgb, var(--accent) 88%, #ffffff);
+  --grid: #26272C; --shadow: none; --r-lg: 24px; --r-md: 20px;
+}
+[data-stile="sport"] body { font-family: 'Inter', system-ui, sans-serif; }
+[data-stile="sport"] .topbar h1, [data-stile="sport"] .hello h2, [data-stile="sport"] .vname, [data-stile="sport"] .vh-nome,
+[data-stile="sport"] .hero .big, [data-stile="sport"] .section-title h3, [data-stile="sport"] .vc-kpi b { font-family: 'Space Grotesk', 'Inter', sans-serif; font-weight: 700; }
+[data-stile="sport"] .card, [data-stile="sport"] .vc, [data-stile="sport"] .mini-v, [data-stile="sport"] .item { border: 1px solid var(--border); }
+[data-stile="sport"] .vc-foto { height: 210px; }
+[data-stile="sport"] .vc.senza-foto .vc-foto { height: 130px; }
+[data-stile="sport"] .vname { font-size: 21px; }
+[data-stile="sport"] .fab { background: var(--accent); }
+[data-stile="sport"] .vhero { margin: 0 -16px; border-radius: 0; background: transparent; }
+[data-stile="sport"] .vhero.con-foto .vh-foto { height: 320px; }
+[data-stile="sport"] .vhero.con-foto .vh-info { position: absolute; left: 0; right: 0; bottom: 0; padding: 70px 20px 14px; background: linear-gradient(180deg, rgba(17,18,20,0) 0%, rgba(17,18,20,.75) 55%, var(--bg) 100%); }
+[data-stile="sport"] .vhero.con-foto .vh-nome { font-size: 32px; }
+[data-stile="sport"] .vhero.con-foto .vh-sub { color: #D4D4D8; }
+[data-stile="sport"] .vhero.senza-foto { margin: 0; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border); }
+
+/* =========================================================
+   STILE SHOWROOM — chiaro, la foto riempie tutta la scheda
+   ========================================================= */
+:root[data-stile="showroom"] {
+  color-scheme: light;
+  --bg: #F3F1EE; --surface: #FFFFFF; --surface-2: #ECE9E4; --border: #E2DED8;
+  --text: #17181C; --text-2: #5F5A54; --text-3: #7D7770;
+  --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, #ffffff);
+  --accent-ink: color-mix(in srgb, var(--accent) 78%, #000000);
+  --grid: #E7E3DD; --shadow: 0 1px 2px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.06); --r-lg: 28px;
+}
+[data-stile="showroom"] body { font-family: 'Manrope', system-ui, sans-serif; }
+[data-stile="showroom"] .topbar h1, [data-stile="showroom"] .hello h2, [data-stile="showroom"] .vname, [data-stile="showroom"] .vh-nome { font-weight: 800; letter-spacing: -.02em; }
+[data-stile="showroom"] .vc.con-foto { min-height: 440px; background: #17181C; color: #ffffff; }
+[data-stile="showroom"] .vc.con-foto .vc-foto { position: absolute; inset: 0; height: auto; }
+[data-stile="showroom"] .vc.con-foto .vc-foto::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 32%, rgba(0,0,0,.82) 100%); }
+[data-stile="showroom"] .vc.con-foto .vc-body { margin-top: auto; }
+[data-stile="showroom"] .vc.con-foto .vname { font-size: 28px; color: #ffffff; }
+[data-stile="showroom"] .vc.con-foto .vsub, [data-stile="showroom"] .vc.con-foto .vc-stats span, [data-stile="showroom"] .vc.con-foto .vc-kpi span { color: rgba(255,255,255,.85); }
+[data-stile="showroom"] .vc.con-foto .vc-kpi b, [data-stile="showroom"] .vc.con-foto .vc-apri { color: #ffffff; }
+[data-stile="showroom"] .vc.con-foto .vc-stats div { background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.24); color: #ffffff; }
+[data-stile="showroom"] .vc.con-foto .vc-foot { border-top-color: rgba(255,255,255,.22); }
+[data-stile="showroom"] .vc.con-foto .vc-chip { background: rgba(255,255,255,.92); color: #17181C; }
+[data-stile="showroom"] .vc.con-foto .vc-chip.acc { background: var(--accent); color: var(--on-accent); }
+[data-stile="showroom"] .vhero { margin: 0 -16px; border-radius: 0; background: transparent; box-shadow: none; }
+[data-stile="showroom"] .vhero.con-foto .vh-foto { height: 400px; }
+[data-stile="showroom"] .vhero.con-foto .vh-info { margin-top: -38px; background: var(--bg); border-radius: 30px 30px 0 0; padding: 22px 16px 4px; }
+[data-stile="showroom"] .vhero.con-foto .vh-nome { font-size: 30px; }
+[data-stile="showroom"] .vhero.senza-foto { margin: 0; border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow); }
+[data-stile="showroom"] .vh-edit { background: rgba(255,255,255,.92); color: #17181C; }
+[data-stile="showroom"] .bottomnav { background: #17181C; border-color: #17181C; border-radius: 999px; }
+[data-stile="showroom"] .bottomnav a { color: #A8A6A2; }
+[data-stile="showroom"] .bottomnav a.on { color: #ffffff; }
+[data-stile="showroom"] .fab { background: var(--accent); border-radius: 999px; }
+
+/* =========================================================
+   STILE CRUSCOTTO — blu notte, numeri grandi
+   ========================================================= */
+:root[data-stile="cruscotto"] {
+  color-scheme: dark;
+  --bg: #0B1220; --surface: #121B2E; --surface-2: #18233A; --border: #1E2A44;
+  --text: #EEF2F8; --text-2: #9AA8BD; --text-3: #8391A8;
+  --on-accent: #0B1220;
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, #121B2E);
+  --accent-ink: color-mix(in srgb, var(--accent) 85%, #ffffff);
+  --grid: #1E2A44; --shadow: none; --r-lg: 26px;
+}
+[data-stile="cruscotto"] body { font-family: 'Inter', system-ui, sans-serif; }
+[data-stile="cruscotto"] .card, [data-stile="cruscotto"] .vc, [data-stile="cruscotto"] .mini-v, [data-stile="cruscotto"] .item, [data-stile="cruscotto"] .vhero { border: 1px solid var(--border); }
+[data-stile="cruscotto"] .hero .big, [data-stile="cruscotto"] .vc-kpi b { font-weight: 800; letter-spacing: -.02em; }
+[data-stile="cruscotto"] .vc-foto { height: 200px; }
+[data-stile="cruscotto"] .vc.con-foto .vc-foto::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(18,27,46,0) 55%, var(--surface) 100%); }
+[data-stile="cruscotto"] .vc-kpi b { font-size: 24px; color: var(--text); }
+[data-stile="cruscotto"] .vc-stats div { background: transparent; padding: 0; }
+[data-stile="cruscotto"] .vc-stats { border-top: 1px solid var(--border); padding-top: 10px; }
+[data-stile="cruscotto"] .fab { background: var(--accent); }
+[data-stile="cruscotto"] .vhero.con-foto .vh-foto { height: 260px; }
+[data-stile="cruscotto"] .vhero.con-foto .vh-info { position: absolute; left: 12px; bottom: 12px; right: 12px; background: rgba(11,18,32,.84); border-radius: 18px; padding: 10px 14px; }
+[data-stile="cruscotto"] .vhero.con-foto .vh-nome { font-size: 22px; }
+[data-stile="cruscotto"] .vhero.con-foto .vh-sub { color: #C9D3E2; }
