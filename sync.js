@@ -74,10 +74,12 @@ const Sync = {
     if (!navigator.onLine) { this.setStato('offline'); if (manuale) UI.toast('Sei offline: sincronizzerò appena torna la rete'); return; }
     if (this._busy) { this._again = true; return; }
     this._busy = true;
+    this.soloFile = false;
     this.setStato('sync');
     const c = this.cfg();
     try {
-      await this.caricaFile(c);
+      // i documenti che non si caricano NON bloccano più il resto: rifornimenti, spese ecc. arrivano comunque al foglio
+      const erroriFile = await this.caricaFile(c);
       const escludi = c.tabelleNo || [];
       const { changes, sent, n } = DB.pending(!c.lastSync, escludi);
       const res = await this._post(c.url, { token: c.token, changes });
@@ -92,9 +94,16 @@ const Sync = {
       c2.lastSync = new Date().toISOString();
       c2.ultimoInvio = n;
       this.saveCfg(c2);
-      this.setStato('ok');
+      if (erroriFile.length) {
+        const msg = `Dati sincronizzati ✓, ma ${erroriFile.length === 1 ? '1 documento non si è caricato' : erroriFile.length + ' documenti non si sono caricati'} su Drive (riprovo alla prossima): ${erroriFile[0]}`;
+        this.soloFile = true;
+        this.setStato('errore', msg);
+        if (manuale) UI.toast(msg);
+      } else {
+        this.setStato('ok');
+        if (manuale) UI.toast(cambiati || n ? `Sincronizzato ✓ (${n} inviati, ${cambiati} ricevuti)` : 'Già tutto aggiornato ✓');
+      }
       if (cambiati) UI.refresh();
-      if (manuale) UI.toast(cambiati || n ? `Sincronizzato ✓ (${n} inviati, ${cambiati} ricevuti)` : 'Già tutto aggiornato ✓');
     } catch (e) {
       this.setStato('errore', e.message);
       if (manuale) UI.toast('Errore: ' + e.message);
@@ -105,24 +114,34 @@ const Sync = {
   },
 
   /** Carica su Google Drive i file dei documenti salvati sul dispositivo
-      (foto, scansioni, PDF). Se un caricamento non riesce, riprova alla prossima sincronizzazione. */
+      (foto, scansioni, PDF). Se un caricamento non riesce, riprova alla prossima sincronizzazione.
+      Restituisce l'elenco degli errori (vuoto se è andato tutto bene). */
   async caricaFile(c) {
     const daCaricare = (DB.data.documenti || []).filter(d => d._file && !d.deleted);
+    const errori = [];
+    let caricati = 0;
     for (const d of daCaricare) {
       const m = /^data:([^;]*);base64,(.*)$/.exec(d._file);
       if (!m) continue;
-      const res = await this._post(c.url, {
-        token: c.token, azione: 'caricaFile',
-        veicoloId: d.veicoloId, nomeVeicolo: UI.nomeVeicolo(DB.get('veicoli', d.veicoloId)), categoria: d.categoria, cartella: d.cartella || '',
-        nome: d.fileNome || d.titolo || 'Documento', mime: m[1] || d.mime || 'application/octet-stream', base64: m[2],
-        sostituisci: d._vecchioFile || ''
-      });
-      if (!res.ok) throw new Error('Caricamento documento: ' + (res.error || 'errore'));
-      // lo script vecchio risponde "ok" ma non salva il file
-      if (!res.fileId) throw new Error('Per caricare i documenti aggiorna lo script nel foglio Google (Garage Sync v3)');
-      await DB.patch('documenti', d.id, { _file: undefined, _vecchioFile: undefined, fileId: res.fileId, url: res.url, fileNome: res.nome || d.fileNome });
+      const nome = d.fileNome || d.titolo || 'Documento';
+      try {
+        const res = await this._post(c.url, {
+          token: c.token, azione: 'caricaFile',
+          veicoloId: d.veicoloId, nomeVeicolo: UI.nomeVeicolo(DB.get('veicoli', d.veicoloId)), categoria: d.categoria, cartella: d.cartella || '',
+          nome, mime: m[1] || d.mime || 'application/octet-stream', base64: m[2],
+          sostituisci: d._vecchioFile || ''
+        });
+        if (!res.ok) throw new Error(res.error || 'errore');
+        // lo script vecchio risponde "ok" ma non salva il file: inutile provare gli altri
+        if (!res.fileId) { errori.push('per caricare i documenti aggiorna lo script nel foglio Google (Garage Sync v3)'); break; }
+        await DB.patch('documenti', d.id, { _file: undefined, _vecchioFile: undefined, fileId: res.fileId, url: res.url, fileNome: res.nome || d.fileNome });
+        caricati++;
+      } catch (e) {
+        errori.push('«' + nome + '»: ' + e.message);
+      }
     }
-    if (daCaricare.length && typeof UI !== 'undefined') UI.refresh();
+    if (caricati && typeof UI !== 'undefined') UI.refresh();
+    return errori;
   },
 
   async collega(url, token) {
@@ -134,7 +153,7 @@ const Sync = {
     this.saveCfg({ url, token, lastSync: null });
     this.setStato('ok');
     await this.run();
-    if (this.stato === 'errore') throw new Error(this.errore);
+    if (this.stato === 'errore' && !this.soloFile) throw new Error(this.errore);
   },
 
   scollega() {

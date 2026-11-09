@@ -3,7 +3,7 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '2.4.6';
+const APP_VERSION = '2.5.2';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -351,12 +351,19 @@ const UI = {
     const lett = Calc.letture(v.id);
     const base = lett.length || num(v.kmIniziali) ? Calc.kmBase(v) : kmNow;
     const kmPercorsi = Math.max(0, kmNow - base);
-    return { s, kmNow, princ, rif, man, scad, kmPercorsi, costoKm: kmPercorsi && s.costoTot ? s.costoTot / kmPercorsi : 0,
+    // €/km: assicurazione e bollo contano solo per la parte di copertura già trascorsa
+    const costoComp = s.perVeicolo[v.id] ? s.perVeicolo[v.id].costoComp : s.costoTot;
+    return { s, kmNow, princ, rif, man, scad, kmPercorsi, costoKm: kmPercorsi && costoComp ? costoComp / kmPercorsi : 0,
       costoCarbKm: kmPercorsi && s.costoCarb ? s.costoCarb / kmPercorsi : 0 };
   },
 
-  testoConsumo(r) {
-    return r.princ && r.princ.x.qta ? `${F.num(r.princ.x.kmL, 1)} km/${CONFIG.unitaCarburante[r.princ.c] || 'L'}` : '—';
+  testoConsumo(r, v) {
+    return r.princ && r.princ.x.qta ? this.fmtConsumo(r.princ.x, CONFIG.unitaCarburante[r.princ.c] || 'L', v) : '—';
+  },
+  /** Consumo leggibile: km/L per i mezzi a km, L/ora per quelli a ore (es. trattorino) */
+  fmtConsumo(x, un, v) {
+    if (Calc.unita(v) === 'ore') return x.km ? `${F.num(x.qta / x.km, 1)} ${un}/ora` : '—';
+    return `${F.num(x.kmL, 1)} km/${un}`;
   },
 
   testoScadenza(sc) {
@@ -458,7 +465,7 @@ const UI = {
         <div class="top">${this.avatar(v)}<div style="min-width:0"><div class="name">${esc(this.nomeVeicolo(v))}</div><div class="sub">${F.num(r.kmNow)} ${u}</div></div></div>
         <div class="nums">
           <div><span>Costo/${u === 'ore' ? 'ora' : 'km'}</span><b>${r.costoKm ? F.eur(r.costoKm, u === 'ore' ? 2 : 3) : '—'}</b></div>
-          <div style="text-align:right"><span>Consumo</span><b>${this.testoConsumo(r)}</b></div>
+          <div style="text-align:right"><span>Consumo</span><b>${this.testoConsumo(r, v)}</b></div>
         </div>
         <div>${r.scad && r.scad.stato !== 'ok' ? `<span class="chip ${r.scad.stato === 'scaduta' ? 'bad' : 'warn'}">${this.emojiScadenza(r.scad)} ${esc(r.scad.titolo.split(' · ')[0])} ${esc(this.testoScadenza(r.scad))}</span>` : '<span class="chip good">✓ Tutto in ordine</span>'}</div>
       </div>`;
@@ -484,7 +491,7 @@ const UI = {
         </div>
         <div class="vfoot">
           <div><span>⛽ Ultimo rifornimento</span><b>${r.rif ? D.fmt(r.rif.data) : '—'}</b></div>
-          <div><span>📈 Consumo medio</span><b>${this.testoConsumo(r)}</b></div>
+          <div><span>📈 Consumo medio</span><b>${this.testoConsumo(r, v)}</b></div>
           <div><span>🗓️ Prossima scadenza</span>${r.scad ? this.chipScadenza(r.scad) : '<b>—</b>'}</div>
         </div>
       </div>`;
@@ -561,7 +568,7 @@ const UI = {
         t = `${esc(r.carburante || 'Rifornimento')} · ${F.num(num(r.litri), 2)} ${un}`;
         s = vn + D.fmt(r.data) + kmTxt;
         const tr = cm[r.id];
-        extra = tr ? `${F.num(tr.kmL, 1)} km/${un}` : `${F.num(num(r.prezzo), 3)} €/${un}`;
+        extra = tr ? this.fmtConsumo(tr, un, v) : `${F.num(num(r.prezzo), 3)} €/${un}`;
         break;
       }
       case 'manutenzioni':
@@ -735,16 +742,17 @@ const UI = {
       const pc = s.perCarb[c];
       if (!pc) return '';
       const un = CONFIG.unitaCarburante[c] || 'L';
+      const nPieni = DB.list('rifornimenti').filter(f => f.veicoloId === v.id && (f.carburante || 'Altro') === c && f.pieno !== false).length;
       return `
         <div class="card">
-          <h4>${CONFIG.emojiCarburante[c] || '⛽'} ${esc(c)} <span class="chip" style="float:right">${pc.n} pieni</span></h4>
+          <h4>${CONFIG.emojiCarburante[c] || '⛽'} ${esc(c)} <span class="chip" style="float:right">${pc.n} ${pc.n === 1 ? 'rifornimento' : 'rifornimenti'}${nPieni !== pc.n ? ' · ' + nPieni + ' pieni' : ''}</span></h4>
           <div class="grid grid-2">
-            ${this.stat('Consumo medio', x.qta ? F.num(x.kmL, 1) + ' km/' + un : '—')}
+            ${this.stat('Consumo medio', x.qta ? this.fmtConsumo(x, un, v) : '—')}
             ${this.stat('Prezzo medio', F.num(pc.prezzoMedio, 3) + ' €/' + un)}
             ${this.stat('Spesa', F.eur(pc.costo))}
             ${this.stat('Totale ' + (un === 'L' ? 'litri' : un), F.num(pc.qta, 1))}
             ${x.kmPieno ? this.stat('Km con un pieno', '~' + F.num(x.kmPieno) + ' km') : ''}
-            ${pc.n ? this.stat('Media a pieno', F.eur(pc.costo / pc.n)) : ''}
+            ${pc.n ? this.stat('Media a rifornimento', F.eur(pc.costo / pc.n)) : ''}
           </div>
           ${x.secondario ? `<p class="muted" style="margin:12px 2px 0">Su un'auto ${esc(v.alimentazione)} la ${esc(c.toLowerCase())} è di supporto: il consumo non si calcola (spesa e litri sì).</p>`
             : !x.qta ? `<p class="muted" style="margin:12px 2px 0">💡 Il consumo appare dopo il secondo pieno.</p>` : ''}
@@ -944,6 +952,7 @@ const UI = {
         ${this.stat('📅 Media al mese', F.eur(s.costoMese, 0))}
         ${this.stat('☀️ Media al giorno', F.eur(s.costoGiorno))}
       </div>
+      <p class="muted" style="margin:10px 6px 0">📏 Nel costo al km assicurazione e bollo sono divisi sui mesi che coprono, così il mese in cui paghi non risulta carissimo.</p>
       <div class="section-title"><h3>Dove vanno i soldi</h3></div>
       <div class="card">${this.barreCategorie(s.cat)}</div>
       ${perVeic ? `<div class="section-title"><h3>Confronto tra mezzi</h3></div><div class="card">${this.barreCategorie(perVeic, emojiV)}</div>` : ''}
@@ -1725,8 +1734,13 @@ const UI = {
       ],
       mount(root) {
         const q = n => root.querySelector(`[name=${n}]`);
+        // la scadenza segue l'inizio (+1 anno) solo finché è quella calcolata: se l'hai scritta tu non la tocco
+        const unAnno = x => { if (!x) return ''; const d = D.parse(x); d.setFullYear(d.getFullYear() + 1); return D.iso(d); };
+        let prima = q('inizio').value;
         q('inizio').addEventListener('change', () => {
-          if (q('inizio').value) { const d = D.parse(q('inizio').value); d.setFullYear(d.getFullYear() + 1); q('scadenza').value = D.iso(d); }
+          const sc = q('scadenza').value;
+          if (q('inizio').value && (!sc || sc === unAnno(prima))) q('scadenza').value = unAnno(q('inizio').value);
+          prima = q('inizio').value;
         });
       }
     },
@@ -1846,10 +1860,29 @@ const UI = {
 
   controllaKm(o) {
     if (!o.km) return true;
-    const prec = Calc.letture(o.veicoloId).filter(l => l.data < o.data);
-    const maxPrec = prec.length ? Math.max(...prec.map(l => l.km)) : 0;
-    if (maxPrec && o.km < maxPrec) {
-      return confirm(`Attenzione: hai inserito ${F.num(o.km)} km, ma in una data precedente risultano già ${F.num(maxPrec)} km. Salvare comunque?`);
+    const v = DB.get('veicoli', o.veicoloId), u = Calc.unita(v);
+    // le letture del contachilometri, senza quella che sto modificando
+    const vecchio = o.id ? DB.list('rifornimenti').concat(DB.list('manutenzioni'), DB.list('spese')).find(x => x.id === o.id) : null;
+    let lett = Calc.letture(o.veicoloId);
+    if (vecchio) { const i = lett.findIndex(l => l.data === vecchio.data && l.km === num(vecchio.km)); if (i >= 0) lett.splice(i, 1); }
+    const prec = lett.filter(l => l.data < o.data), dopo = lett.filter(l => l.data > o.data);
+    const ultimaPrec = prec.length ? prec.reduce((a, l) => l.km >= a.km ? l : a) : null;
+    if (ultimaPrec && o.km < ultimaPrec.km) {
+      return confirm(`Attenzione: hai inserito ${F.num(o.km)} ${u}, ma in una data precedente risultano già ${F.num(ultimaPrec.km)} ${u}. Salvare comunque?`);
+    }
+    // per il salto uso l'ultima lettura prima di questa data, o i km di partenza del mezzo
+    const ultima = ultimaPrec || (num(v && v.kmIniziali) ? { km: num(v.kmIniziali), data: null } : null);
+    // salto troppo grande: di solito è una cifra in più (es. 512000 invece di 51200)
+    if (ultima && u === 'km') {
+      const giorni = ultima.data ? Math.max(1, D.diffDays(ultima.data, o.data)) : 30;
+      const salto = o.km - ultima.km;
+      if (salto > 3000 + giorni * 300) {
+        return confirm(`Attenzione: ${F.num(o.km)} km sono ${F.num(salto)} km in più dell'ultima volta${ultima.data ? ' (' + D.fmt(ultima.data) + ')' : ''}. Forse c'è una cifra di troppo? Salvare comunque?`);
+      }
+    }
+    const minDopo = dopo.length ? Math.min(...dopo.map(l => l.km)) : 0;
+    if (minDopo && o.km > minDopo) {
+      return confirm(`Attenzione: hai inserito ${F.num(o.km)} ${u}, ma in una data successiva risultano solo ${F.num(minDopo)} ${u}. Salvare comunque?`);
     }
     return true;
   },
@@ -2058,7 +2091,8 @@ const UI = {
       if (table === 'veicoli') { o.foto = foto; if (!o.createdAt) o.createdAt = new Date().toISOString(); }
       if (table === 'rifornimenti' && !o.totale && o.litri && o.prezzo) o.totale = Math.round(o.litri * o.prezzo * 100) / 100;
       root.querySelectorAll('.err').forEach(x => x.classList.remove('err'));
-      const missing = flat.filter(f => f.req && (o[f.k] === '' || o[f.k] === undefined || (typeof o[f.k] === 'number' && o[f.k] <= 0 && f.k !== 'km')));
+      // tutti i numeri obbligatori devono essere > 0 (anche i km del rifornimento: con 0 il consumo verrebbe sbagliato)
+      const missing = flat.filter(f => f.req && (o[f.k] === '' || o[f.k] === undefined || (typeof o[f.k] === 'number' && o[f.k] <= 0)));
       if (missing.length) {
         missing.forEach(f => { const el = root.querySelector(`.chips[data-for=${f.k}]`) || root.querySelector(`[name=${f.k}]`); if (el) el.classList.add('err'); });
         const first = root.querySelector('.err'); if (first) first.scrollIntoView({ block: 'center', behavior: 'smooth' });

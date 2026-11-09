@@ -312,7 +312,7 @@ function consumo(v) {
   let km = 0, litri = 0, ultimo = null, acc = 0;
   rif.forEach(f => {
     acc += num(f.litri);
-    if (f.pieno !== false) {
+    if (f.pieno !== false && num(f.km) > 0) {   // senza km non si può calcolare il consumo
       if (ultimo !== null && num(f.km) > ultimo) { km += num(f.km) - ultimo; litri += acc; }
       ultimo = num(f.km); acc = 0;
     }
