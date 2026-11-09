@@ -3,7 +3,7 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '4.0.0-anteprima';
+const APP_VERSION = '4.1.0-glass';
 
 const $ = s => document.querySelector(s);
 /** Grafica minimal: niente emoji davanti alle etichette */
@@ -468,7 +468,10 @@ const UI = {
     }
     return out;
   },
-  colore() { return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(); },
+  colore(nome) {
+    const css = getComputedStyle(document.documentElement);
+    return (nome && css.getPropertyValue(nome).trim()) || css.getPropertyValue('--accent').trim();
+  },
   graficoSpesa(el, ids, n) {
     if (!el) return;
     const mesi = this.ultimiMesi(n);
@@ -481,14 +484,14 @@ const UI = {
     this.graficoSpesa($('#chVSpesa'), [v.id], 12);
     const mesi = this.ultimiMesi(12);
     const elKm = $('#chVKm');
-    if (elKm) Charts.bar(elKm, { labels: mesi.map(m => m.label), tipLabels: mesi.map(m => m.tip), series: [{ name: u === 'ore' ? 'Ore' : 'Km', color: this.colore(), data: mesi.map(m => Calc.kmNelPeriodo(v, m)) }],
+    if (elKm) Charts.bar(elKm, { labels: mesi.map(m => m.label), tipLabels: mesi.map(m => m.tip), series: [{ name: u === 'ore' ? 'Ore' : 'Km', color: this.colore('--g4'), data: mesi.map(m => Calc.kmNelPeriodo(v, m)) }],
       fmt: x => F.num(x) + ' ' + u, fmtAxis: x => F.num(x) });
     const elC = $('#chVCons');
     if (elC) {
       const c = Calc.carburantiVeicolo(v).map(k => ({ k, x: Calc.consumo(v.id, k) })).sort((a, b) => b.x.qta - a.x.qta)[0];
       const tr = c ? c.x.tratti.slice(-12) : [];
       const un = c ? CONFIG.unitaCarburante[c.k] || 'L' : 'L';
-      if (tr.length >= 2) Charts.line(elC, { labels: tr.map(t => D.breve(t.data)), series: [{ name: 'Consumo', color: this.colore(), data: tr.map(t => u === 'ore' ? t.qta / t.km : t.kmL) }],
+      if (tr.length >= 2) Charts.line(elC, { labels: tr.map(t => D.breve(t.data)), series: [{ name: 'Consumo', color: this.colore('--g3'), data: tr.map(t => u === 'ore' ? t.qta / t.km : t.kmL) }],
         zoom: true, fmt: x => F.num(x, 1) + (u === 'ore' ? ' ' + un + '/ora' : ' km/' + un), fmtAxis: x => F.num(x, 1) });
       else elC.closest('.m-grafico').hidden = true;
     }
