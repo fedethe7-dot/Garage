@@ -3,7 +3,7 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '2.7.1';
+const APP_VERSION = '3.0.0';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -22,6 +22,16 @@ const TEMI = [
   { k: 'bosco', n: 'Bosco', e: '🌲', d: '#8ee6a4', l: '#15803d', a2: '#2dd4bf' },
   { k: 'rubino', n: 'Rubino', e: '❤️', d: '#ff7a7a', l: '#dc2626', a2: '#fb923c' },
   { k: 'grafite', n: 'Grafite', e: '🖤', d: '#c3cad6', l: '#475569', a2: '#94a3b8' }
+];
+
+/* ---------- Stili dell'app (si scelgono in Temi e colori) ----------
+   Ogni stile ha i suoi sfondi, caratteri e schede; il colore (Oceano, Tramonto…) vale per tutti.
+   tema: lo stile decide chiaro/scuro (null = lo decidi tu, come prima) */
+const STILI = [
+  { k: 'classico', n: 'Classico', d: 'Morbido, come prima', tema: null, sw: ['#f5f6fa', '#ffffff', '#171923'] },
+  { k: 'sport', n: 'Sport', d: 'Scuro, foto grande in cima', tema: 'dark', sw: ['#111214', '#1A1B1F', '#F4F4F5'] },
+  { k: 'showroom', n: 'Showroom', d: 'Chiaro, la foto riempie la scheda', tema: 'light', sw: ['#F3F1EE', '#17181C', '#FFFFFF'] },
+  { k: 'cruscotto', n: 'Cruscotto', d: 'Blu notte, numeri in evidenza', tema: 'dark', sw: ['#0B1220', '#121B2E', '#EEF2F8'] }
 ];
 
 const ICON = {
@@ -153,6 +163,7 @@ const UI = {
   /* ---------- Avvio ---------- */
   async init() {
     try { Object.assign(this.state, JSON.parse(localStorage.getItem('garage-ui') || '{}')); } catch (e) {}
+    this.applicaStile();
     this.applyColor();
     await DB.open();
     await DB.loadAll();
@@ -197,15 +208,28 @@ const UI = {
 
   /* ---------- Tema e colori ---------- */
   modo() { try { return localStorage.getItem('garage-tema') || 'dark'; } catch (e) { return 'dark'; } },
+  stile() { try { const k = localStorage.getItem('garage-stile'); return STILI.some(x => x.k === k) ? k : 'classico'; } catch (e) { return 'classico'; } },
+  /** Applica lo stile: alcuni stili decidono da soli chiaro o scuro */
+  setStile(k) {
+    try { localStorage.setItem('garage-stile', k); } catch (e) {}
+    this.applicaStile();
+    this.applyColor();
+  },
+  applicaStile() {
+    const st = STILI.find(x => x.k === this.stile()) || STILI[0];
+    const r = document.documentElement;
+    if (st.k === 'classico') delete r.dataset.stile; else r.dataset.stile = st.k;
+    const modo = st.tema || this.modo();
+    if (modo === 'auto') delete r.dataset.theme; else r.dataset.theme = modo;
+  },
   isDark() {
     const t = document.documentElement.dataset.theme;
     if (t) return t === 'dark';
     return matchMedia('(prefers-color-scheme: dark)').matches;
   },
   setModo(t) {
-    if (t === 'auto') delete document.documentElement.dataset.theme;
-    else document.documentElement.dataset.theme = t;
     try { localStorage.setItem('garage-tema', t); } catch (e) {}
+    this.applicaStile();
     this.applyColor();
   },
   applyColor() {
@@ -219,13 +243,21 @@ const UI = {
   },
 
   openThemeSheet() {
-    const modo = this.modo();
+    const modo = this.modo(), stile = this.stile(), st = STILI.find(x => x.k === stile);
     this.openSheet('Temi e colori', `
-      <div class="field"><span class="lbl">Aspetto</span>
+      <div class="field"><span class="lbl">Stile dell'app</span>
+        <div class="stili">
+          ${STILI.map(x => `<button class="stile-btn ${stile === x.k ? 'on' : ''}" data-stile="${x.k}">
+            <span class="stile-sw" style="background:${x.sw[0]}"><i style="background:${x.sw[1]}"></i><i style="background:var(--accent)"></i><i style="background:${x.sw[2]}"></i></span>
+            <b>${x.n}</b><small>${x.d}</small></button>`).join('')}
+        </div>
+      </div>
+      ${st && st.tema ? `<p class="muted" style="margin:10px 4px 0">Lo stile ${esc(st.n)} è sempre ${st.tema === 'dark' ? 'scuro' : 'chiaro'}. Il colore qui sotto lo puoi cambiare.</p>` : `
+      <div class="field" style="margin-top:18px"><span class="lbl">Aspetto</span>
         <div class="seg" id="segModo">
           ${[['dark', '🌙 Scuro'], ['light', '☀️ Chiaro'], ['auto', '📱 Auto']].map(([k, l]) => `<button class="${modo === k ? 'on' : ''}" data-m="${k}">${l}</button>`).join('')}
         </div>
-      </div>
+      </div>`}
       <div class="field" style="margin-top:18px"><span class="lbl">Colore</span>
         <div class="themes">
           ${TEMI.map(t => `<button class="theme-btn ${this.state.colore === t.k ? 'on' : ''}" data-c="${t.k}">
@@ -235,6 +267,7 @@ const UI = {
       <p class="muted" style="text-align:center;margin:18px 0 4px">Il tema si applica subito, prova! ✨</p>`);
     const body = $('#sheetBody');
     body.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { this.setModo(b.dataset.m); this._needRender = true; this.openThemeSheet(); });
+    body.querySelectorAll('[data-stile]').forEach(b => b.onclick = () => { this.setStile(b.dataset.stile); this._needRender = true; this.openThemeSheet(); });
     body.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { this.state.colore = b.dataset.c; this.saveUi(); this.applyColor(); this._needRender = true; this.openThemeSheet(); });
   },
 
@@ -470,8 +503,9 @@ const UI = {
     const r = this.riepilogoVeicolo(v);
     const u = Calc.unita(v);
     return `
-      <div class="mini-v" data-go="#veicolo/${v.id}">
-        <div class="top">${this.avatar(v)}<div style="min-width:0"><div class="name">${esc(this.nomeVeicolo(v))}</div><div class="sub">${F.num(r.kmNow)} ${u}</div></div></div>
+      <div class="mini-v ${v.foto ? 'con-foto' : ''}" data-go="#veicolo/${v.id}">
+        ${v.foto ? `<img class="mini-foto" src="${esc(v.foto)}" alt="">` : ''}
+        <div class="top">${v.foto ? '' : this.avatar(v)}<div style="min-width:0"><div class="name">${esc(this.nomeVeicolo(v))}</div><div class="sub">${F.num(r.kmNow)} ${u}</div></div></div>
         <div class="nums">
           <div><span>Costo/${u === 'ore' ? 'ora' : 'km'}</span><b>${r.costoKm ? F.eur(r.costoKm, u === 'ore' ? 2 : 3) : '—'}</b></div>
           <div style="text-align:right"><span>Consumo</span><b>${this.testoConsumo(r, v)}</b></div>
@@ -480,31 +514,43 @@ const UI = {
       </div>`;
   },
 
+  /** Foto del mezzo grande (o lo spazio per aggiungerla) */
+  fotoGrande(v, cls) {
+    return v.foto ? `<img class="${cls}-img" src="${esc(v.foto)}" alt="">`
+      : `<button type="button" class="${cls}-vuota" data-edit="veicoli:${v.id}" aria-label="Aggiungi una foto di ${esc(this.nomeVeicolo(v))}"><span class="em">${this.emojiVeicolo(v)}</span><span class="add">📷 Aggiungi una foto</span></button>`;
+  },
+
+  /** Scheda di un mezzo nell'elenco: foto grande + numeri. La forma cambia con lo stile (CSS). */
   vcard(v) {
     const r = this.riepilogoVeicolo(v);
     const u = Calc.unita(v);
+    const sc = r.scad && r.scad.stato !== 'ok' ? r.scad : null;
     return `
-      <div class="card vcard" data-go="#veicolo/${v.id}">
-        <div class="vhead">
-          ${this.avatar(v)}
-          <div style="flex:1;min-width:0">
-            <div class="vname">${esc(this.nomeVeicolo(v))}</div>
-            <div class="vsub">${esc([v.marca, v.modello].filter(Boolean).join(' '))}${v.targa ? ' · ' + esc(v.targa) : ''}</div>
-            <span class="chip acc vchip">${CONFIG.emojiCarburante[v.alimentazione] || '⛽'} ${esc(v.alimentazione || '')}${v.carburante2 ? ' + ' + esc(v.carburante2) : ''}</span>
-            ${Fam.di(v) ? `<span class="chip vchip">👨‍👩‍👧 ${esc(Fam.di(v))}</span>` : ''}
+      <article class="vc ${v.foto ? 'con-foto' : 'senza-foto'}" data-go="#veicolo/${v.id}">
+        <div class="vc-foto">
+          ${this.fotoGrande(v, 'vc')}
+          <div class="vc-chips">
+            <span class="vc-chip">${esc(v.alimentazione || 'Mezzo')}${v.carburante2 ? ' + ' + esc(v.carburante2) : ''}</span>
+            ${Fam.di(v) ? `<span class="vc-chip">👨‍👩‍👧 ${esc(Fam.di(v))}</span>` : ''}
+          </div>
+          ${v.targa ? `<span class="vc-targa">${esc(v.targa)}</span>` : ''}
+        </div>
+        <div class="vc-body">
+          <div class="vc-head">
+            <div class="vc-nome"><div class="vname">${esc(this.nomeVeicolo(v))}</div><div class="vsub">${esc([v.marca, v.modello, v.anno].filter(Boolean).join(' · ') || v.tipo || '')}</div></div>
+            <div class="vc-kpi">${r.costoKm ? `<b>${F.eur(r.costoKm, 2)}</b><span>/${u === 'ore' ? 'ora' : 'km'}</span>` : '<span>€/km —</span>'}</div>
+          </div>
+          <div class="vc-stats">
+            <div><span>${u === 'ore' ? 'Ore' : 'Km'}</span><b>${F.num(r.kmNow)}</b></div>
+            <div><span>Consumo</span><b>${this.testoConsumo(r, v)}</b></div>
+            <div><span>Speso</span><b>${F.eur(r.s.costoTot, 0)}</b></div>
+          </div>
+          <div class="vc-foot">
+            ${sc ? `<span class="chip ${sc.stato === 'scaduta' ? 'bad' : 'warn'}">${esc(sc.titolo.split(' · ')[0])} ${esc(this.testoScadenza(sc))}</span>` : '<span class="chip good">✓ Tutto in ordine</span>'}
+            <span class="vc-apri">Apri →</span>
           </div>
         </div>
-        <div class="vmetrics">
-          <div><span>${u === 'ore' ? 'Ore motore' : 'Km attuali'}</span><b>${F.num(r.kmNow)}</b></div>
-          <div><span>Speso</span><b>${F.eur(r.s.costoTot, 0)}</b></div>
-          <div><span>Costo/${u === 'ore' ? 'ora' : 'km'}</span><b>${r.costoKm ? F.eur(r.costoKm, u === 'ore' ? 2 : 3) : '—'}</b></div>
-        </div>
-        <div class="vfoot">
-          <div><span>⛽ Ultimo rifornimento</span><b>${r.rif ? D.fmt(r.rif.data) : '—'}</b></div>
-          <div><span>📈 Consumo medio</span><b>${this.testoConsumo(r, v)}</b></div>
-          <div><span>🗓️ Prossima scadenza</span>${r.scad ? this.chipScadenza(r.scad) : '<b>—</b>'}</div>
-        </div>
-      </div>`;
+      </article>`;
   },
 
   itemScadenza(sc) {
@@ -731,21 +777,19 @@ const UI = {
     }
 
     $('#view').innerHTML = `
-      <div class="card">
-        <div class="vhead">
-          ${this.avatar(v, 'lg')}
-          <div style="flex:1;min-width:0">
-            <div class="vname" style="font-size:21px">${esc(this.nomeVeicolo(v))}</div>
-            <div class="vsub">${esc([v.marca, v.modello, v.anno].filter(Boolean).join(' '))}</div>
-            <div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap">
-              ${v.targa ? `<span class="chip">${esc(v.targa)}</span>` : ''}
-              ${Fam.di(v) ? `<span class="chip">👨‍👩‍👧 di ${esc(Fam.di(v))}</span>` : ''}
-              <span class="chip acc">${CONFIG.emojiCarburante[v.alimentazione] || '⛽'} ${esc(v.alimentazione || '')}${v.carburante2 ? ' + ' + esc(v.carburante2) : ''}</span>
-            </div>
+      <section class="vhero ${v.foto ? 'con-foto' : 'senza-foto'}">
+        <div class="vh-foto">${this.fotoGrande(v, 'vh')}</div>
+        <div class="vh-info">
+          <div class="vh-chips">
+            <span class="vc-chip acc">${esc(v.alimentazione || 'Mezzo')}${v.carburante2 ? ' + ' + esc(v.carburante2) : ''}</span>
+            ${v.targa ? `<span class="vc-targa">${esc(v.targa)}</span>` : ''}
+            ${Fam.di(v) ? `<span class="vc-chip">👨‍👩‍👧 di ${esc(Fam.di(v))}</span>` : ''}
           </div>
-          <button class="icon-btn" data-edit="veicoli:${v.id}" aria-label="Modifica veicolo">${ICON.edit}</button>
+          <div class="vh-nome">${esc(this.nomeVeicolo(v))}</div>
+          <div class="vh-sub">${esc([v.marca, v.modello, v.anno].filter(Boolean).join(' · '))}</div>
         </div>
-      </div>
+        <button class="icon-btn vh-edit" data-edit="veicoli:${v.id}" aria-label="Modifica veicolo">${ICON.edit}</button>
+      </section>
       <div class="quick-row" style="margin-top:12px">
         <button class="qa" data-act="new" data-table="rifornimenti" data-vid="${v.id}"><span class="em t-fuel">⛽</span>Rifornimento</button>
         <button class="qa" data-act="new" data-table="spese" data-vid="${v.id}"><span class="em t-exp">🧾</span>Spesa</button>
@@ -2094,7 +2138,7 @@ const UI = {
         inp.type = 'file'; inp.accept = 'image/*';
         inp.onchange = async () => {
           if (!inp.files[0]) return;
-          foto = await this.resizeImage(inp.files[0], 640);
+          foto = await this.resizeImage(inp.files[0], 1400, 0.82);   // grande: ora la foto è protagonista nelle schede
           $('#photoPrev').innerHTML = `<img src="${foto}" alt="">`;
         };
         inp.click();
