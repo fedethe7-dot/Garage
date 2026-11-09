@@ -3,7 +3,7 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '2.6.0';
+const APP_VERSION = '2.6.1';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1495,6 +1495,8 @@ const UI = {
           <button class="btn" data-act="sync-now">${ICON.refresh} Sincronizza ora</button>
           <button class="btn secondary" id="btnScollega">Scollega</button>
         </div>
+        <button class="btn secondary block" id="btnInvito" style="margin-top:10px">💌 Link d'invito per "La mia auto"</button>
+        <p class="muted" style="margin:8px 4px 0">Per mamma e Beatrice (anche su iPhone). Il link apre il tuo foglio: mandalo solo in famiglia.</p>
         <p class="muted" style="margin-top:14px;word-break:break-all">Collegato a: ${esc(c.url)}</p>` : `
         <form class="form" id="frmSync">
           <div class="field"><label for="sUrl">Indirizzo dell'app web (Apps Script)</label>
@@ -1510,6 +1512,7 @@ const UI = {
     const sn = $('#sheetBody').querySelector('[data-act="sync-now"]');
     if (sn) sn.onclick = () => Sync.run(true).then(() => this.openSyncSheet());
     if (on) {
+      $('#btnInvito').onclick = () => this.invitaLaMiaAuto();
       $('#btnScollega').onclick = () => {
         if (!confirm('Scollegare il foglio Google? I dati restano sia nell\'app sia nel foglio.')) return;
         Sync.scollega(); this.openSyncSheet(); this.toast('Foglio scollegato');
@@ -1529,6 +1532,21 @@ const UI = {
           alert('Collegamento non riuscito:\n' + err.message);
         }
       };
+    }
+  },
+
+  /** Link d'invito per "La mia auto" (stesso formato che usa La mia auto: indirizzo e codice del foglio) */
+  async invitaLaMiaAuto() {
+    const c = Sync.cfg();
+    const b = btoa(unescape(encodeURIComponent(JSON.stringify({ u: c.url, t: c.token }))));
+    const link = new URL('facile/', location.href.split('#')[0]).href.split('?')[0] + '#invito=' + encodeURIComponent(b);
+    try {
+      if (navigator.share) { await navigator.share({ title: 'La mia auto', text: 'Apri questo link per segnare rifornimenti e manutenzioni della tua auto:', url: link }); return; }
+      await navigator.clipboard.writeText(link); this.toast('Link copiato ✓ incollalo su WhatsApp');
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      try { await navigator.clipboard.writeText(link); this.toast('Link copiato ✓ incollalo su WhatsApp'); }
+      catch (e2) { prompt('Copia questo link e mandalo su WhatsApp:', link); }
     }
   },
 
