@@ -31,6 +31,19 @@ const CONFIG = {
   kmAvviso: 1000       // manutenzione "in arrivo" se mancano meno di 1000 km
 };
 
+/* ---------- Mezzi di famiglia ----------
+   Un mezzo di un famigliare (es. l'auto della mamma) porta nelle note il segno "[famiglia: Mamma]".
+   Sta nelle note così arriva al foglio Google senza dover aggiungere colonne, e vale su tutti i telefoni.
+   Questi mezzi non contano nelle spese della Home e nelle statistiche "I miei mezzi". */
+const Fam = {
+  NOMI: ['Mamma', 'Beatrice'],
+  RE: /\s*\[famiglia:\s*([^\]]+)\]/i,
+  di(v) { const m = this.RE.exec(String((v && v.note) || '')); return m ? m[1].trim() : ''; },
+  pulisci(note) { return String(note || '').replace(this.RE, '').trim(); },
+  imposta(note, nome) { const n = this.pulisci(note); return nome ? (n ? n + ' ' : '') + '[famiglia: ' + nome + ']' : n; },
+  mio(v) { return !this.di(v); }
+};
+
 /* ---------- Date ---------- */
 const D = {
   today() { return this.iso(new Date()); },
