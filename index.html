@@ -6,22 +6,23 @@
   <title>Garage</title>
   <meta name="description" content="Gestione personale dei veicoli: rifornimenti, consumi, manutenzione, spese e statistiche.">
   <meta name="theme-color" content="#0e1014">
-  <link rel="manifest" href="manifest.json?v=255">
+  <link rel="manifest" href="manifest.json?v=256">
   <link rel="icon" href="icona-garage.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icona-garage-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=255">
-  <link rel="stylesheet" href="minimal.css?v=255">
-  <link rel="stylesheet" href="glass.css?v=255">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=256">
+  <link rel="stylesheet" href="minimal.css?v=256">
+  <link rel="stylesheet" href="glass.css?v=256">
   <script>
     // applica subito tema e colore salvati (evita il lampo)
     try {
       // stile dell'app (Sport, Showroom, Cruscotto): alcuni decidono da soli chiaro/scuro
       const stile = localStorage.getItem('garage-stile');
       const temaStile = { sport: 'dark', showroom: 'light', cruscotto: 'dark' }[stile];
-      if (temaStile) document.documentElement.dataset.stile = stile;
+      if (temaStile || stile === 'minimal' || stile === 'glass') document.documentElement.dataset.stile = stile;
+      if (stile === 'minimal' || stile === 'glass') document.documentElement.dataset.layout = 'nuovo';
       const t = temaStile || localStorage.getItem('garage-tema') || 'dark';
       if (t !== 'auto') document.documentElement.dataset.theme = t;
       const c = JSON.parse(localStorage.getItem('garage-colore-css') || 'null');
@@ -77,12 +78,12 @@
 
   <div class="toast" id="toast" hidden></div>
 
-  <script src="db.js?v=255"></script>
-  <script src="calc.js?v=255"></script>
-  <script src="charts.js?v=255"></script>
-  <script src="sync.js?v=255"></script>
-  <script src="viaggi.js?v=255"></script>
-  <script src="drivvo.js?v=255"></script>
-  <script src="app.js?v=255"></script>
+  <script src="db.js?v=256"></script>
+  <script src="calc.js?v=256"></script>
+  <script src="charts.js?v=256"></script>
+  <script src="sync.js?v=256"></script>
+  <script src="viaggi.js?v=256"></script>
+  <script src="drivvo.js?v=256"></script>
+  <script src="app.js?v=256"></script>
 </body>
 </html>
