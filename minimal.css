@@ -223,3 +223,8 @@ details.more input, details.more select, details.more textarea { background: var
 /* niente icone-emoji nei riquadri: bastano le parole */
 .fact .em, .bar-row .em, .chips button > span, .pills .vavatar.sm { display: none; }
 .fact { gap: 0; }
+
+/* ---------- Grafici semplici ---------- */
+.m-chart { position: relative; height: 170px; margin-top: 6px; }
+.m-chart svg { touch-action: pan-y; }
+.m-grafico[hidden] { display: none; }

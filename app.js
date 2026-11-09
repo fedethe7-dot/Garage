@@ -453,8 +453,45 @@ const UI = {
         ${fam.length ? `<a class="m-link-btn" href="#famiglia">Mezzi di famiglia · ${fam.length}</a>` : ''}
       </div>
       ${scad.length ? `<h3 class="m-h">Da ricordare</h3><div class="m-list">${scad.map(sc => this.itemScadenza(sc)).join('')}</div>` : ''}
+      ${miei.length ? `<h3 class="m-h">Spesa degli ultimi 6 mesi <a href="#statistiche">Dettagli</a></h3><div class="m-chart" id="chHome"></div>` : ''}
       <h3 class="m-h">Ultimi movimenti <a href="#movimenti">Tutti</a></h3>
       ${this.listaMovimenti(null, 5)}`;
+    if (miei.length) this.graficoSpesa($('#chHome'), miei.map(v => v.id), 6);
+  },
+
+  /* ---------- Grafici semplici (una serie, colore principale, valori al tocco) ---------- */
+  ultimiMesi(n) {
+    const oggi = D.parse(D.today()), out = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const a = new Date(oggi.getFullYear(), oggi.getMonth() - i, 1), b = new Date(a.getFullYear(), a.getMonth() + 1, 0);
+      out.push({ from: D.iso(a), to: D.iso(b), label: D.monthName(a.getMonth()), tip: D.monthLong(a.getMonth()) + ' ' + a.getFullYear() });
+    }
+    return out;
+  },
+  colore() { return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(); },
+  graficoSpesa(el, ids, n) {
+    if (!el) return;
+    const mesi = this.ultimiMesi(n);
+    const dati = mesi.map(m => Calc.stats(ids, m).costoTot);
+    Charts.bar(el, { labels: mesi.map(m => m.label), tipLabels: mesi.map(m => m.tip), series: [{ name: 'Spesa', color: this.colore(), data: dati }],
+      fmt: v => F.eur(v), fmtAxis: v => F.num(v, 0) + ' €' });
+  },
+  graficiVeicolo(v) {
+    const u = Calc.unita(v);
+    this.graficoSpesa($('#chVSpesa'), [v.id], 12);
+    const mesi = this.ultimiMesi(12);
+    const elKm = $('#chVKm');
+    if (elKm) Charts.bar(elKm, { labels: mesi.map(m => m.label), tipLabels: mesi.map(m => m.tip), series: [{ name: u === 'ore' ? 'Ore' : 'Km', color: this.colore(), data: mesi.map(m => Calc.kmNelPeriodo(v, m)) }],
+      fmt: x => F.num(x) + ' ' + u, fmtAxis: x => F.num(x) });
+    const elC = $('#chVCons');
+    if (elC) {
+      const c = Calc.carburantiVeicolo(v).map(k => ({ k, x: Calc.consumo(v.id, k) })).sort((a, b) => b.x.qta - a.x.qta)[0];
+      const tr = c ? c.x.tratti.slice(-12) : [];
+      const un = c ? CONFIG.unitaCarburante[c.k] || 'L' : 'L';
+      if (tr.length >= 2) Charts.line(elC, { labels: tr.map(t => D.breve(t.data)), series: [{ name: 'Consumo', color: this.colore(), data: tr.map(t => u === 'ore' ? t.qta / t.km : t.kmL) }],
+        zoom: true, fmt: x => F.num(x, 1) + (u === 'ore' ? ' ' + un + '/ora' : ' km/' + un), fmtAxis: x => F.num(x, 1) });
+      else elC.closest('.m-grafico').hidden = true;
+    }
   },
 
   iniziali(v) { return this.nomeVeicolo(v).split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase(); },
@@ -670,7 +707,10 @@ const UI = {
       body = (sc.length ? `<div class="m-list">${sc.map(x => this.itemScadenza(x)).join('')}</div>` : '<p class="m-nulla">Nessuna scadenza: aggiungi bollo, assicurazione o la revisione.</p>') +
         `<div class="m-actions"><button class="m-link-btn" data-act="new" data-table="bolli" data-vid="${v.id}">${ICON.plus} Bollo</button><button class="m-link-btn" data-act="new" data-table="assicurazioni" data-vid="${v.id}">${ICON.plus} Assicurazione</button></div>` +
         this.boxSospensione(v);
-    } else if (tab === 'dati') body = this.vVeicoloPanoramica(v);
+    } else if (tab === 'dati') body = `
+      <div class="m-grafico"><h3 class="m-h">Spesa negli ultimi 12 mesi</h3><div class="m-chart" id="chVSpesa"></div></div>
+      <div class="m-grafico"><h3 class="m-h">${u === 'ore' ? 'Ore' : 'Km'} al mese</h3><div class="m-chart" id="chVKm"></div></div>
+      <div class="m-grafico"><h3 class="m-h">Consumo, pieno per pieno</h3><div class="m-chart" id="chVCons"></div></div>` + this.vVeicoloPanoramica(v);
     else if (tab === 'archivio') body = `<div class="m-actions"><button class="m-link-btn" data-act="new" data-table="documenti" data-vid="${v.id}">${ICON.plus} Documento</button></div>` + this.listaDocumenti(v.id);
     else {
       const lista = Viaggi.lista(v.id);
@@ -692,6 +732,7 @@ const UI = {
       </div>
       <nav class="m-tabs">${tabs.map(([k, l]) => `<button class="${k === tab ? 'on' : ''}" data-act="tab" data-tab="${k}">${l}</button>`).join('')}</nav>
       ${body}`;
+    if (tab === 'dati') this.graficiVeicolo(v);
   },
 
   vVeicoloPanoramica(v) {
