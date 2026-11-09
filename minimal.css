@@ -229,3 +229,12 @@
 [data-layout="nuovo"] .m-chart { position: relative; height: 170px; margin-top: 6px; }
 [data-layout="nuovo"] .m-chart svg { touch-action: pan-y; }
 [data-layout="nuovo"] .m-grafico[hidden] { display: none; }
+
+/* v4.0.1 — numeri sempre interi (anche con i caratteri grandi del telefono) e schede che si capisce che scorrono */
+[data-layout="nuovo"] .m-kpi { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr); }
+[data-layout="nuovo"] .m-kpi b { font-size: clamp(16px, 5.4vw, 22px); text-overflow: clip; }
+[data-layout="nuovo"] .m-tabs, [data-layout="nuovo"] .m-filtri {
+  margin-right: -20px; padding-right: 28px;
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 44px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 44px), transparent 100%);
+}
