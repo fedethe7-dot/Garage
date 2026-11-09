@@ -9,6 +9,23 @@ const DB_NAME = 'garage-db';
 const DB_VERSION = 3;
 const TABLES = ['veicoli', 'rifornimenti', 'manutenzioni', 'spese', 'bolli', 'assicurazioni', 'documenti', 'viaggi'];
 
+/* Date: l'app usa sempre AAAA-MM-GG. Se ne arriva una con l'ora (es. "2026-10-28T23:00:00.000Z",
+   che è la mezzanotte del 29 in Italia) la riporto al giorno giusto, sul telefono. */
+const CAMPI_DATA = ['data', 'dataFine', 'dataPagamento', 'periodoDa', 'periodoA', 'scadenza', 'inizio', 'prossimaData', 'sospesaDal', 'riattivoPrevisto'];
+function giornoLocale(v) {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(v)) return v;
+  const d = new Date(v);
+  if (isNaN(d)) return v.slice(0, 10);
+  const z = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+}
+/** Sistema le date di un record; restituisce true se ne ha cambiata qualcuna */
+function sistemaDate(r) {
+  let cambiato = false;
+  for (const k of CAMPI_DATA) { const x = giornoLocale(r[k]); if (x !== r[k]) { r[k] = x; cambiato = true; } }
+  return cambiato;
+}
+
 const DB = {
   _db: null,
   data: {},   // copia in memoria di tutte le tabelle
@@ -28,7 +45,11 @@ const DB = {
   },
 
   async loadAll() {
-    for (const t of TABLES) this.data[t] = await this._getAll(t);
+    for (const t of TABLES) {
+      this.data[t] = await this._getAll(t);
+      // date con l'ora dentro: le correggo e le rimando al foglio già giuste
+      for (const r of this.data[t]) if (sistemaDate(r)) { r._dirty = true; r.updatedAt = new Date().toISOString(); await this._put(t, r); }
+    }
   },
 
   _getAll(table) {
@@ -74,6 +95,7 @@ const DB = {
 
   async save(table, rec) {
     const r = { ...rec };
+    sistemaDate(r);
     if (!r.id) r.id = this.newId();
     r.updatedAt = new Date().toISOString();
     r.deleted = false;
@@ -143,12 +165,15 @@ const DB = {
           keep.push(loc); continue;
         }
         const nuovo = { ...s, deleted: false, _sync: true, _dirty: false };
+        // data arrivata dal foglio con l'ora dentro: la correggo e la rimando giusta
+        if (sistemaDate(nuovo)) { nuovo._dirty = true; nuovo.updatedAt = new Date().toISOString(); }
         if (t === 'veicoli' && loc.foto) nuovo.foto = loc.foto;      // la foto resta solo sul dispositivo
         if (s.updatedAt !== loc.updatedAt || loc._dirty || !loc._sync) { await this._put(t, nuovo); if (s.updatedAt !== loc.updatedAt) cambiati++; }
         keep.push(nuovo);
       }
       for (const id in sMap) {   // nuovi record arrivati dal foglio
         const nuovo = { ...sMap[id], deleted: false, _sync: true, _dirty: false };
+        if (sistemaDate(nuovo)) { nuovo._dirty = true; nuovo.updatedAt = new Date().toISOString(); }
         await this._put(t, nuovo); keep.push(nuovo); cambiati++;
       }
       this.data[t] = keep;

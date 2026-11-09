@@ -3,7 +3,7 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.7.1';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -244,9 +244,9 @@ const UI = {
     const [route, param] = hash.split('/');
     Charts.clear();
     if (typeof Viaggi !== 'undefined') Viaggi.pulisci();
-    const parent = { veicolo: 'mezzi', scadenze: 'altro', movimenti: 'home', documenti: 'altro', viaggi: 'altro', viaggio: 'altro' }[route] || route;
+    const parent = { veicolo: 'mezzi', famiglia: 'mezzi', scadenze: 'altro', movimenti: 'home', documenti: 'altro', viaggi: 'altro', viaggio: 'altro' }[route] || route;
     document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === parent));
-    $('#btnBack').hidden = !['veicolo', 'scadenze', 'movimenti', 'documenti', 'viaggi', 'viaggio'].includes(route);
+    $('#btnBack').hidden = !['veicolo', 'famiglia', 'scadenze', 'movimenti', 'documenti', 'viaggi', 'viaggio'].includes(route);
     const view = $('#view');
     const nuovaPagina = this._lastHash !== hash;
     if (nuovaPagina) { view.style.animation = 'none'; void view.offsetWidth; view.style.animation = ''; }
@@ -254,6 +254,7 @@ const UI = {
     const views = {
       home: () => this.vHome(),
       mezzi: () => this.vMezzi(),
+      famiglia: () => this.vFamiglia(),
       veicolo: () => this.vVeicolo(param),
       statistiche: () => this.vStatistiche(),
       altro: () => this.vAltro(),
@@ -358,8 +359,10 @@ const UI = {
     const kmPercorsi = Math.max(0, kmNow - base);
     // €/km: assicurazione e bollo contano solo per la parte di copertura già trascorsa
     const costoComp = s.perVeicolo[v.id] ? s.perVeicolo[v.id].costoComp : s.costoTot;
-    return { s, kmNow, princ, rif, man, scad, kmPercorsi, costoKm: kmPercorsi && costoComp ? costoComp / kmPercorsi : 0,
-      costoCarbKm: kmPercorsi && s.costoCarb ? s.costoCarb / kmPercorsi : 0 };
+    // con pochi km registrati il costo al km non vuol dire niente (es. 31 € su 7 km = 4,43 €/km): lo mostro da 500 km in su
+    const kmBastano = Calc.unita(v) === 'ore' ? kmPercorsi >= 10 : kmPercorsi >= 500;
+    return { s, kmNow, princ, rif, man, scad, kmPercorsi, costoKm: kmBastano && costoComp ? costoComp / kmPercorsi : 0,
+      costoCarbKm: kmBastano && s.costoCarb ? s.costoCarb / kmPercorsi : 0 };
   },
 
   testoConsumo(r, v) {
@@ -452,7 +455,7 @@ const UI = {
         ${veicoli.map(v => this.miniVeicolo(v)).join('')}
         <div class="mini-v add" data-act="new-veicolo">${ICON.plus}<span>Aggiungi</span></div>
       </div>
-      ${famiglia.length ? `<div class="list" style="margin-top:10px"><div class="item" data-go="#mezzi"><div class="ic t-exp">👨‍👩‍👧</div><div class="main"><div class="t">Mezzi di famiglia</div><div class="s">${famiglia.map(v => esc(this.nomeVeicolo(v)) + ' · ' + esc(Fam.di(v))).join(', ')}</div></div>${ICON.chevron}</div></div>` : ''}
+      ${famiglia.length ? `<div class="list" style="margin-top:10px"><div class="item" data-go="#famiglia"><div class="ic t-exp">👨‍👩‍👧</div><div class="main"><div class="t">Mezzi di famiglia</div><div class="s">${famiglia.map(v => esc(this.nomeVeicolo(v)) + ' · ' + esc(Fam.di(v))).join(', ')}</div></div>${ICON.chevron}</div></div>` : ''}
 
       <div class="section-title"><h3>Ultimi movimenti</h3><a href="#movimenti">Vedi tutti</a></div>
       ${this.listaMovimenti(null, 5)}
@@ -493,7 +496,7 @@ const UI = {
         </div>
         <div class="vmetrics">
           <div><span>${u === 'ore' ? 'Ore motore' : 'Km attuali'}</span><b>${F.num(r.kmNow)}</b></div>
-          <div><span>Speso in tutto</span><b>${F.eur(r.s.costoTot, 0)}</b></div>
+          <div><span>Speso</span><b>${F.eur(r.s.costoTot, 0)}</b></div>
           <div><span>Costo/${u === 'ore' ? 'ora' : 'km'}</span><b>${r.costoKm ? F.eur(r.costoKm, u === 'ore' ? 2 : 3) : '—'}</b></div>
         </div>
         <div class="vfoot">
@@ -682,15 +685,23 @@ const UI = {
   vMezzi() {
     this.setTitle('I miei mezzi');
     const veicoli = this.mieiVeicoli(), famiglia = this.veicoliFamiglia();
-    const perNome = {};
-    famiglia.forEach(v => (perNome[Fam.di(v)] = perNome[Fam.di(v)] || []).push(v));
     $('#view').innerHTML = `
       ${veicoli.length ? `<div class="grid grid-auto">${veicoli.map(v => this.vcard(v)).join('')}</div>` :
         `<div class="card empty"><div class="e-ic">🚗</div><h4>Nessun mezzo</h4><p>Aggiungi auto, moto, scooter o altri mezzi.</p></div>`}
-      ${famiglia.length ? `<div class="section-title"><h3>👨‍👩‍👧 Di famiglia</h3><span class="muted">fuori dai tuoi conti</span></div>` +
-        Object.entries(perNome).map(([nome, vs]) => `<div class="day-label">${esc(nome)}</div><div class="grid grid-auto">${vs.map(v => this.vcard(v)).join('')}</div>`).join('') : ''}
+      ${famiglia.length ? `<div class="list" style="margin-top:14px"><div class="item" data-go="#famiglia"><div class="ic t-exp">👨‍👩‍👧</div><div class="main"><div class="t">Mezzi di famiglia</div><div class="s">${famiglia.length} ${famiglia.length === 1 ? 'mezzo' : 'mezzi'} · fuori dai tuoi conti</div></div>${ICON.chevron}</div></div>` : ''}
       <div class="spacer"></div>
       <button class="btn block" data-act="new-veicolo">${ICON.plus} Nuovo mezzo</button>`;
+  },
+
+  /** Solo i mezzi di famiglia, divisi per persona */
+  vFamiglia() {
+    this.setTitle('Mezzi di famiglia');
+    const famiglia = this.veicoliFamiglia();
+    if (!famiglia.length) { location.hash = '#mezzi'; return; }
+    const perNome = {};
+    famiglia.forEach(v => (perNome[Fam.di(v)] = perNome[Fam.di(v)] || []).push(v));
+    $('#view').innerHTML = `<p class="muted" style="margin:0 6px 6px">Non contano nelle tue spese e statistiche. Ognuno li aggiorna da "La mia auto".</p>` +
+      Object.entries(perNome).map(([nome, vs]) => `<div class="section-title"><h3>${esc(nome)}</h3></div><div class="grid grid-auto">${vs.map(v => this.vcard(v)).join('')}</div>`).join('');
   },
 
   /* =========================================================
