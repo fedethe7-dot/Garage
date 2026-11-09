@@ -196,11 +196,21 @@ const DB = {
   async importJSON(text) {
     const obj = JSON.parse(text);
     if (!obj || !obj.dati) throw new Error('File non valido');
+    const ora = new Date().toISOString();
     for (const t of TABLES) {
+      // data di modifica = adesso, così il foglio prende la versione del backup
+      const rows = (Array.isArray(obj.dati[t]) ? obj.dati[t] : []).map(r => ({ ...r, _dirty: true, updatedAt: ora }));
+      const nelBackup = new Set(rows.map(r => r.id));
+      // quello che è già nel foglio ma non nel backup va eliminato anche dal foglio,
+      // altrimenti con la sincronizzazione tornerebbe indietro
+      const daTogliere = (this.data[t] || []).filter(r => r._sync && !r.deleted && !nelBackup.has(r.id))
+        .map(r => { const { foto, _file, ...x } = r; return { ...x, deleted: true, _dirty: true, updatedAt: ora }; });
+      // i record già presenti nel foglio restano "sincronizzati": il foglio li aggiorna invece di duplicarli
+      const giaNelFoglio = new Set((this.data[t] || []).filter(r => r._sync).map(r => r.id));
+      rows.forEach(r => { if (giaNelFoglio.has(r.id)) r._sync = true; });
       await this._clear(t);
-      const rows = (Array.isArray(obj.dati[t]) ? obj.dati[t] : []).map(r => ({ ...r, _dirty: true }));
-      for (const r of rows) await this._put(t, r);
-      this.data[t] = rows;
+      for (const r of rows.concat(daTogliere)) await this._put(t, r);
+      this.data[t] = rows.concat(daTogliere);
     }
     if (typeof Sync !== 'undefined') Sync.schedule();
   }

@@ -172,7 +172,9 @@ const Calc = {
     const tratti = [];
     for (const f of list) {
       accum += num(f.litri);
-      if (f.pieno !== false) {
+      // un rifornimento senza km (es. importato con il contachilometri vuoto) non può chiudere un tratto:
+      // lo tratto come "non pieno", altrimenti il consumo verrebbe assurdo (es. 1000 km/l)
+      if (f.pieno !== false && num(f.km) > 0) {
         if (ultimoPieno !== null && num(f.km) > ultimoPieno) {
           const dk = num(f.km) - ultimoPieno;
           if (Periodi.inRange(f.data, r)) {
@@ -240,6 +242,23 @@ const Calc = {
       p.kmL = cq ? ck / cq : 0; p.l100 = ck ? cq / ck * 100 : 0;
     }
 
+    // assicurazione e bollo "di competenza": la spesa annuale si divide sui giorni coperti,
+    // così il costo al km non esplode nel mese in cui paghi (serve solo per €/km)
+    const oggiC = D.today();
+    const fineFin = r.to && r.to < oggiC ? r.to : oggiC;
+    const quota = (costo, da, a) => {
+      if (!costo || !da) return 0;
+      const fine = a && a > da ? a : D.addDays(da, 365);
+      const tot = Math.max(1, D.diffDays(da, fine));
+      const ini = r.from && r.from > da ? r.from : da;
+      const end = D.addDays(fineFin, 1) < fine ? D.addDays(fineFin, 1) : fine;
+      return end > ini ? costo * D.diffDays(ini, end) / tot : 0;
+    };
+    const compVeic = {};
+    for (const v of veicoli) compVeic[v.id] = 0;
+    for (const x of sel('assicurazioni')) compVeic[x.veicoloId] += quota(num(x.costo), x.inizio, x.scadenza);
+    for (const x of sel('bolli')) compVeic[x.veicoloId] += quota(num(x.importo), x.periodoDa || x.dataPagamento, x.periodoA || x.scadenza);
+
     // costi per categoria
     const cat = { Carburante: costoCarb, Manutenzione: 0, Bollo: 0, Assicurazione: 0 };
     for (const x of man) { cat.Manutenzione += num(x.costo); perVeicolo[x.veicoloId].costo += num(x.costo); }
@@ -265,7 +284,14 @@ const Calc = {
     const giorniUso = new Set([...rif, ...man, ...spe].map(x => x.data)).size;
 
     // costo/km solo sui veicoli a km
-    const costoKmVeicoli = veicoli.filter(v => this.unita(v) === 'km').reduce((a, v) => a + perVeicolo[v.id].costo, 0);
+    // costo per il €/km: spese pagate nel periodo, ma con assicurazione e bollo divisi sui mesi coperti
+    for (const v of veicoli) {
+      const pv = perVeicolo[v.id];
+      const pagati = bol.filter(x => x.veicoloId === v.id).reduce((a, x) => a + num(x.importo), 0)
+        + ass.filter(x => x.veicoloId === v.id).reduce((a, x) => a + num(x.costo), 0);
+      pv.costoComp = pv.costo - pagati + compVeic[v.id];
+    }
+    const costoKmVeicoli = veicoli.filter(v => this.unita(v) === 'km').reduce((a, v) => a + perVeicolo[v.id].costoComp, 0);
     const carbKmVeicoli = veicoli.filter(v => this.unita(v) === 'km').reduce((a, v) => a + perVeicolo[v.id].carburante, 0);
 
     // consumo medio complessivo (solo litri)
@@ -284,6 +310,7 @@ const Calc = {
       costoCarb, costoTot,
       costoGiorno: costoTot / giorni, costoMese: costoTot / giorni * 30.44,
       costoKm: km ? costoKmVeicoli / km : 0,
+      costoComp: veicoli.reduce((a, v) => a + perVeicolo[v.id].costoComp, 0),
       costoCarbKm: km ? carbKmVeicoli / km : 0,
       perCarb, cat, perVeicolo,
       nRif: rif.length, nMan: man.length
@@ -322,8 +349,9 @@ const Calc = {
       const kmNow = this.kmAttuali(v);
       const u = this.unita(v);
       // revisione: vale solo l'ultima registrata con la data della prossima
+      // stessa regola del calendario Google: conta la prossima data più lontana
       const rev = DB.list('manutenzioni').filter(x => x.veicoloId === v.id && x.tipo === 'Revisione' && x.prossimaData)
-        .sort((a, b) => a.data < b.data ? 1 : -1)[0];
+        .sort((a, b) => a.prossimaData < b.prossimaData ? 1 : a.prossimaData > b.prossimaData ? -1 : (a.data < b.data ? 1 : -1))[0];
       if (rev) out.push(this._scad(v, 'Revisione', rev.prossimaData, 0, kmNow, u, oggi, 'revisione'));
       const last = (t, f) => DB.list(t).filter(x => x.veicoloId === v.id && x[f]).sort((a, b) => a[f] < b[f] ? 1 : -1)[0];
       const b = last('bolli', 'scadenza');

@@ -47,8 +47,9 @@ const Drivvo = {
   _carb(nome, prezzo) {
     const n = (nome || '').toLowerCase();
     if (n.includes('gpl') || n.includes('lpg')) return 'GPL';
-    if (n.includes('benz') || n.includes('gasol') || n.includes('petrol')) return 'Benzina';
-    if (n.includes('diesel') || n.includes('gasolio')) return 'Diesel';
+    // prima il diesel: "gasolio" è diesel (prima finiva per errore tra la benzina)
+    if (n.includes('diesel') || (n.includes('gasol') && !n.includes('gasoline'))) return 'Diesel';
+    if (n.includes('benz') || n.includes('petrol') || n.includes('gasoline')) return 'Benzina';
     if (n.includes('metano') || n.includes('cng')) return 'Metano';
     if (n.includes('elettr') || n.includes('electric')) return 'Elettrico';
     // nome sconosciuto (es. "Non Usare"): lo deduco dal prezzo
@@ -104,7 +105,8 @@ const Drivvo = {
         if (!o.prezzo && litri) o.prezzo = Math.round(totale / litri * 1000) / 1000;
         rif.push(o);
         const quando = D.fmt(data) + ' · ' + F.num(km) + ' km';
-        if (litri > 70) avvisi.push(`${quando}: ${F.num(litri, 1)} litri di ${carburante} per ${F.eur(totale)} — forse un errore di battitura`);
+        if (!km) avvisi.push(`${D.fmt(data)}: rifornimento senza km nel contachilometri — non conta per il consumo`);
+        else if (litri > 70) avvisi.push(`${quando}: ${F.num(litri, 1)} litri di ${carburante} per ${F.eur(totale)} — forse un errore di battitura`);
         else if (carburante === 'GPL' && prezzo > 1.2) avvisi.push(`${quando}: GPL a ${F.num(prezzo, 3)} €/L — forse era benzina`);
         else if (/non usare/i.test(r[kc] || '')) avvisi.push(`${quando}: carburante "${r[kc]}" in Drivvo, l'ho importato come ${carburante}`);
       });
