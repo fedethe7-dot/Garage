@@ -55,6 +55,8 @@ const D = {
   addDays(s, n) { const d = this.parse(s); d.setDate(d.getDate() + n); return this.iso(d); },
   diffDays(a, b) { return Math.round((this.parse(b) - this.parse(a)) / 86400000); },
   fmt(s) { if (!s) return '—'; const [y, m, d] = s.split('-'); return d + '/' + m + '/' + y; },
+  /** "30 ott" (con l'anno se non è quello di oggi) */
+  breve(s) { if (!s) return '—'; const [y, m, d] = s.split('-'); return +d + ' ' + this.monthName(+m - 1).toLowerCase() + (+y !== new Date().getFullYear() ? ' ' + y : ''); },
   monthName(i) { return ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'][i]; },
   monthLong(i) { return ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'][i]; }
 };
