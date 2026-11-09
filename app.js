@@ -3,7 +3,7 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '2.6.1';
+const APP_VERSION = '2.7.0';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1496,7 +1496,7 @@ const UI = {
           <button class="btn secondary" id="btnScollega">Scollega</button>
         </div>
         <button class="btn secondary block" id="btnInvito" style="margin-top:10px">💌 Link d'invito per "La mia auto"</button>
-        <p class="muted" style="margin:8px 4px 0">Per mamma e Beatrice (anche su iPhone). Il link apre il tuo foglio: mandalo solo in famiglia.</p>
+        <p class="muted" style="margin:8px 4px 0">Per mamma e Beatrice (anche su iPhone): ognuno vede e modifica solo i suoi mezzi.</p>
         <p class="muted" style="margin-top:14px;word-break:break-all">Collegato a: ${esc(c.url)}</p>` : `
         <form class="form" id="frmSync">
           <div class="field"><label for="sUrl">Indirizzo dell'app web (Apps Script)</label>
@@ -1536,9 +1536,25 @@ const UI = {
   },
 
   /** Link d'invito per "La mia auto" (stesso formato che usa La mia auto: indirizzo e codice del foglio) */
-  async invitaLaMiaAuto() {
+  invitaLaMiaAuto() {
+    const codici = Sync.cfg().codiciFamiglia || {};
+    const nomi = Object.keys(codici);
+    if (!nomi.length) {
+      alert('Per creare un link sicuro (ognuno vede solo i suoi mezzi) aggiorna prima lo script del foglio a "Garage Sync v4", poi tocca "Sincronizza ora" e riprova.');
+      return;
+    }
+    // un link diverso per ogni persona: con il suo codice vede e modifica solo i suoi mezzi
+    this.openSheet('💌 Link per "La mia auto"', `
+      <p class="muted" style="margin:0 4px 12px">Per chi è il link? Con il suo link vede e modifica solo i mezzi segnati a suo nome ("Di chi è?" nella scheda del mezzo).</p>
+      <div class="list">${nomi.map(n => {
+        const quanti = DB.list('veicoli').filter(v => Fam.di(v) === n).length;
+        return `<div class="item" data-chi="${esc(n)}"><div class="ic t-exp">👨‍👩‍👧</div><div class="main"><div class="t">${esc(n)}</div><div class="s">${quanti ? quanti + (quanti === 1 ? ' mezzo' : ' mezzi') + ' a suo nome' : 'nessun mezzo a suo nome: potrà aggiungere la sua auto'}</div></div>${ICON.chevron}</div>`;
+      }).join('')}</div>`);
+    $('#sheetBody').querySelectorAll('[data-chi]').forEach(el => el.onclick = () => this.condividiInvito(el.dataset.chi, codici[el.dataset.chi]));
+  },
+  async condividiInvito(chi, codice) {
     const c = Sync.cfg();
-    const b = btoa(unescape(encodeURIComponent(JSON.stringify({ u: c.url, t: c.token }))));
+    const b = btoa(unescape(encodeURIComponent(JSON.stringify({ u: c.url, t: codice, chi }))));
     const link = new URL('facile/', location.href.split('#')[0]).href.split('?')[0] + '#invito=' + encodeURIComponent(b);
     try {
       if (navigator.share) { await navigator.share({ title: 'La mia auto', text: 'Apri questo link per segnare rifornimenti e manutenzioni della tua auto:', url: link }); return; }

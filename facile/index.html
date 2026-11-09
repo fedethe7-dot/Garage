@@ -234,7 +234,7 @@ const Sync = {
         });
       });
       const res = await this.post({ token: cfg.token, changes });
-      if (!res.ok) throw new Error(res.error === 'Codice non valido' ? 'Il link non è più valido: chiedine uno nuovo a Federico' : (res.error || 'Errore dal foglio'));
+      if (!res.ok) throw new Error(/codice/i.test(res.error || '') ? 'Il link non è più valido: chiedine uno nuovo a Federico' : (res.error || 'Errore dal foglio'));
       this.unisci(res.data || {}, sent);
       cfg.lastSync = new Date().toISOString(); salvaCfg();
       this.stato = 'ok';
@@ -325,6 +325,8 @@ function render() {
   const app = $('#app');
   if (!cfg.url) return benvenuto(app);
   if (!cfg.chi) return chiSei(app);
+  // con il link personale il foglio manda solo le sue auto: sono tutte sue, niente da scegliere
+  if (cfg.personale && !mieAuto().length && autoVisibili().length) { cfg.miei = autoVisibili().map(v => v.id); cfg.auto = cfg.miei[0]; salvaCfg(); }
   if (!mieAuto().length) return sceltaAuto(app);
   casa(app);
 }
@@ -358,7 +360,10 @@ function leggiInvito(testo) {
   try {
     const o = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));
     if (!o.u || !o.t) return false;
-    cfg.url = o.u; cfg.token = o.t; salvaCfg();
+    cfg.url = o.u; cfg.token = o.t;
+    // link personale (Garage Sync v4): so già chi è e vede solo le sue auto
+    if (o.chi) { cfg.chi = o.chi; cfg.personale = true; }
+    salvaCfg();
     return true;
   } catch (e) { return false; }
 }
@@ -579,16 +584,16 @@ function impostazioni() {
   apri(`${testa('Impostazioni')}
     <button class="btn line" id="auto">🚗 Cambia le mie auto</button>
     ${cfg.chi === 'Federico' ? '<button class="btn line" id="nasc">🙈 Nascondi auto agli altri</button>' : ''}
-    <button class="btn line" id="chi">🙋 Non sono ${esc(cfg.chi)}</button>
-    <button class="btn line" id="inv">💌 Copia il link per un'altra persona</button>
+    ${cfg.personale ? '' : `<button class="btn line" id="chi">🙋 Non sono ${esc(cfg.chi)}</button>`}
+    ${cfg.personale ? '' : '<button class="btn line" id="inv">💌 Copia il link per un\'altra persona</button>'}
     <button class="btn line" id="agg">🔄 Aggiorna dal foglio</button>
     <p class="hint">I dati stanno nel foglio Google di Garage: Federico li vede anche lì. Il link d'invito apre le auto di famiglia, mandalo solo in famiglia.</p>
     <button class="btn ghost" id="esci">Scollega questo telefono</button>`);
   $('#auto').onclick = () => { chiudi(); sceltaAuto($('#app')); };
   const nb = $('#nasc'); if (nb) nb.onclick = nascondi;
-  $('#chi').onclick = () => { cfg.chi = ''; salvaCfg(); chiudi(); render(); };
+  if ($('#chi')) $('#chi').onclick = () => { cfg.chi = ''; salvaCfg(); chiudi(); render(); };
   $('#agg').onclick = () => { chiudi(); Sync.vai(true); };
-  $('#inv').onclick = async () => {
+  if ($('#inv')) $('#inv').onclick = async () => {
     const l = linkInvito();
     try { if (navigator.share) await navigator.share({ title: 'La mia auto', text: 'Apri questo link per segnare i rifornimenti:', url: l }); else { await navigator.clipboard.writeText(l); toast('Link copiato'); } }
     catch (e) { try { await navigator.clipboard.writeText(l); toast('Link copiato'); } catch (er) { prompt('Copia il link:', l); } }
