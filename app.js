@@ -3,10 +3,11 @@
    Interfaccia: schermate, moduli, navigazione.
    ========================================================= */
 
-const APP_VERSION = '4.0.0';
+const APP_VERSION = '4.0.1';
 
 const $ = s => document.querySelector(s);
 /** Grafica minimal: niente emoji davanti alle etichette */
+const norm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 const noEmoji = s => document.documentElement.dataset.layout === 'nuovo' ? String(s ?? '').replace(/^[\p{Extended_Pictographic}\uFE0F\u200D\s]+/u, '') : String(s ?? '');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -1054,6 +1055,10 @@ const UI = {
     if (!v) { location.hash = '#home'; return; }
     this.state.ultimoVeicolo = id; this.saveUi();
     this.setTitle(this.nomeVeicolo(v));
+    $('#pageTitle').textContent = '';   // il nome c'è già, grande, sotto la foto
+    // marca e modello solo se dicono qualcosa in più del nome (es. "Opel Corsa" → no)
+    const mm = [v.marca, v.modello].filter(Boolean).join(' ');
+    const marcaModello = mm && norm(mm) !== norm(this.nomeVeicolo(v)) ? mm : '';
     const tabs = [['movimenti', 'Movimenti'], ['scadenze', 'Scadenze'], ['dati', 'Dati'], ['archivio', 'Documenti'], ['viaggi', 'Viaggi']];
     let tab = this.state.vehTab;
     if (!tabs.some(x => x[0] === tab)) tab = 'movimenti';
@@ -1087,7 +1092,7 @@ const UI = {
         <button class="m-hero-edit" data-edit="veicoli:${v.id}" aria-label="Modifica il mezzo">${ICON.edit}</button>
       </div>
       <h2 class="m-titolo">${esc(this.nomeVeicolo(v))}</h2>
-      <p class="m-sotto">${esc([[v.marca, v.modello].filter(Boolean).join(' '), v.anno, v.targa, v.alimentazione + (v.carburante2 ? ' + ' + v.carburante2 : ''), Fam.di(v) ? 'di ' + Fam.di(v) : ''].filter(Boolean).join(' · '))}</p>
+      <p class="m-sotto">${esc([marcaModello, v.anno, v.targa, v.alimentazione + (v.carburante2 ? ' + ' + v.carburante2 : ''), Fam.di(v) ? 'di ' + Fam.di(v) : ''].filter(Boolean).join(' · '))}</p>
       <div class="m-kpi">
         <div><b>${F.num(r.kmNow)}</b><span>${u}</span></div>
         <div><b>${r.costoKm ? F.num(r.costoKm, 2) : '—'}</b><span>€/${u === 'ore' ? 'ora' : 'km'}</span></div>

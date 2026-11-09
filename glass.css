@@ -154,3 +154,9 @@
 [data-stile="glass"] .btn.secondary { background: var(--glass); color: var(--text); border-color: var(--glass-line); }
 [data-stile="glass"] .m-btn { background: linear-gradient(135deg, var(--g1), var(--g2)); color: #fff; }
 [data-stile="glass"] .toast { background: var(--glass-strong); color: var(--text); border: 1px solid var(--glass-line); }
+
+/* v4.0.1 — tessere un po' più strette dentro, schede più compatte */
+[data-stile="glass"] .m-kpi { gap: 6px; }
+[data-stile="glass"] .m-kpi div, [data-stile="glass"] .m-kpi div + div { padding: 12px; }
+[data-stile="glass"] .m-tabs { padding: 4px 28px 4px 4px; }
+[data-stile="glass"] .m-tabs button { padding: 8px 12px; font-size: 13.5px; }
