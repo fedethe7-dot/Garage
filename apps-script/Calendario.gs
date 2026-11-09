@@ -87,7 +87,7 @@ function scadenzeDalFoglio_() {
   const ultima = (righe, campo) => {
     const per = {};
     righe.forEach(r => {
-      const d = data_(r[campo]);
+      const d = dataCal_(r[campo]);
       if (!d || !r.veicoloId) return;
       if (!per[r.veicoloId] || d > per[r.veicoloId].d) per[r.veicoloId] = { r, d };
     });
@@ -99,9 +99,9 @@ function scadenzeDalFoglio_() {
   const ass = ultima(leggi_('assicurazioni'), 'scadenza');
   Object.keys(ass).forEach(vid => {
     const r = ass[vid].r, n = nomi[vid] || r.veicolo || 'Mezzo';
-    if (data_(r.sospesaDal)) {
-      metti('riatt-' + vid, data_(r.riattivoPrevisto), '▶️ Riattivare assicurazione ' + n,
-        'Assicurazione sospesa dal ' + fmt_(data_(r.sospesaDal)) + '. Ricordati di riattivarla, poi tocca "Riattiva" in Garage.');
+    if (dataCal_(r.sospesaDal)) {
+      metti('riatt-' + vid, dataCal_(r.riattivoPrevisto), '▶️ Riattivare assicurazione ' + n,
+        'Assicurazione sospesa dal ' + fmt_(dataCal_(r.sospesaDal)) + '. Ricordati di riattivarla, poi tocca "Riattiva" in Garage.');
     } else {
       metti('ass-' + vid, ass[vid].d, '🛡️ Scade assicurazione ' + n,
         'Assicurazione' + (r.compagnia ? ' ' + r.compagnia : '') + ' in scadenza.');
@@ -161,8 +161,11 @@ function calendario_() {
   return c || CalendarApp.createCalendar(CAL_NOME, { color: CalendarApp.Color.RED });
 }
 
-/* ---------- date ---------- */
-function data_(v) {
+/* ---------- date ----------
+   Nome "dataCal_" (non "data_"): nello stesso progetto c'è lo script di sincronizzazione che ha già una
+   funzione data_. Con lo stesso nome una sostituiva l'altra e la sincronizzazione andava in errore
+   ("r.data.slice is not a function") e le date arrivavano all'app con l'ora dentro. */
+function dataCal_(v) {
   if (!v) return null;
   if (Object.prototype.toString.call(v) === '[object Date]') { if (isNaN(v)) return null; const d = new Date(v); d.setHours(0, 0, 0, 0); return d; }
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v));

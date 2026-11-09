@@ -334,7 +334,7 @@ function leggiTabella_(ss, t) {
       const v = riga[k];
       switch (c[2]) {
         case 'n': r[c[0]] = numero_(v); break;
-        case 'd': r[c[0]] = data_(v, tz); break;
+        case 'd': r[c[0]] = dataFoglio_(v, tz); break;
         case 'b': r[c[0]] = (v === '' || v === null) ? true : /^(s[iì]|true|x|1|yes|vero)$/i.test(String(v).trim()) || v === true; break;
         case 'v': r._nomeVeicolo = String(v || '').trim(); break;
         default: r[c[0]] = v === null ? '' : String(v).trim();
@@ -407,7 +407,7 @@ function numero_(v) {
   return isFinite(n) ? n : '';
 }
 
-function data_(v, tz) {
+function dataFoglio_(v, tz) {
   if (!v) return '';
   if (Object.prototype.toString.call(v) === '[object Date]') return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
   const s = String(v).trim();
